@@ -1,1 +1,24 @@
-/target
+# Rust build artifacts
+target/
+**/target/
+
+# Release packages and dist files
+dist/
+release/
+*.tar.gz
+*.zip
+
+# Plasma / QML cache
+*.qmlc
+*.jsc
+
+# Editor & OS files
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Temporary dumps
+dev-state.json
