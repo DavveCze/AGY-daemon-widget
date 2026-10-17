@@ -17,14 +17,14 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
         Err(_) => 4, // 4KB default
     };
 
-    let uptime = read_system_uptime();
-
     let proc_dir = match fs::read_dir("/proc") {
         Ok(d) => d,
         Err(_) => return results,
     };
 
     let presence_str = presence_dir.to_string_lossy();
+
+    let my_pid = std::process::id();
 
     for entry in proc_dir.flatten() {
         let file_name = entry.file_name();
@@ -34,6 +34,10 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
             Err(_) => continue,
         };
 
+        if pid == my_pid {
+            continue;
+        }
+
         // Check cmdline
         let cmdline_path = format!("/proc/{}/cmdline", pid);
         let cmdline = match fs::read(&cmdline_path) {
@@ -41,25 +45,35 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
             Err(_) => continue,
         };
 
-        if !cmdline.contains("agy") {
+        if !cmdline.contains("agy") || cmdline.contains("agy-daemon") || cmdline.contains("/usage") || cmdline.contains("grep") {
+            continue;
+        }
+
+        // Check exe to verify it is the agy CLI binary
+        let exe_path = format!("/proc/{}/exe", pid);
+        let is_agy_binary = if let Ok(target) = fs::read_link(&exe_path) {
+            let target_str = target.to_string_lossy();
+            target_str.ends_with("/agy") || target_str == "agy"
+        } else {
+            cmdline.starts_with("agy\0") || cmdline.starts_with("agy ") || cmdline.contains("/bin/agy")
+        };
+
+        if !is_agy_binary {
             continue;
         }
 
         // Look for open .lock file in /proc/{pid}/fd
         let fd_dir_path = format!("/proc/{}/fd", pid);
-        let fd_entries = match fs::read_dir(&fd_dir_path) {
-            Ok(f) => f,
-            Err(_) => continue,
-        };
-
         let mut matched_conv_id: Option<String> = None;
-        for fd_entry in fd_entries.flatten() {
-            if let Ok(link_target) = fs::read_link(fd_entry.path()) {
-                let target_str = link_target.to_string_lossy();
-                if target_str.contains(&*presence_str) && target_str.ends_with(".lock") {
-                    if let Some(file_stem) = link_target.file_stem() {
-                        matched_conv_id = Some(file_stem.to_string_lossy().to_string());
-                        break;
+        if let Ok(fd_entries) = fs::read_dir(&fd_dir_path) {
+            for fd_entry in fd_entries.flatten() {
+                if let Ok(link_target) = fs::read_link(fd_entry.path()) {
+                    let target_str = link_target.to_string_lossy();
+                    if target_str.contains(&*presence_str) && target_str.ends_with(".lock") {
+                        if let Some(file_stem) = link_target.file_stem() {
+                            matched_conv_id = Some(file_stem.to_string_lossy().to_string());
+                            break;
+                        }
                     }
                 }
             }
@@ -67,7 +81,18 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
 
         let conv_id = match matched_conv_id {
             Some(id) => id,
-            None => continue,
+            None => {
+                // If waiting for prompt or new session, parse conversation UUID if given in cmdline
+                let args: Vec<&str> = cmdline.split('\0').collect();
+                let mut found_conv: Option<String> = None;
+                for i in 0..args.len() {
+                    if args[i] == "--conversation" && i + 1 < args.len() {
+                        found_conv = Some(args[i + 1].to_string());
+                        break;
+                    }
+                }
+                found_conv.unwrap_or_else(|| format!("cli-{}", pid))
+            }
         };
 
         // Read cwd
@@ -89,33 +114,8 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
             let parts: Vec<&str> = statm.split_whitespace().collect();
             if parts.len() >= 2 {
                 if let Ok(resident_pages) = parts[1].parse::<u64>() {
-                    memory_rss_mb = (resident_pages * page_size_kb) as f32 / 1024.0;
-                }
-            }
-        }
-
-        // Read stats from /proc/{pid}/stat
-        let stat_path = format!("/proc/{}/stat", pid);
-        let mut runtime_seconds = 0;
-        let mut cpu_percent = 0.0;
-
-        if let Ok(stat) = fs::read_to_string(&stat_path) {
-            // Field 22 is starttime (in ticks after boot)
-            let stat_parts: Vec<&str> = stat.split_whitespace().collect();
-            if stat_parts.len() > 21 {
-                if let Ok(start_ticks) = stat_parts[21].parse::<u64>() {
-                    let ticks_per_sec = 100; // standard Linux x86_64 USER_HZ
-                    let start_sec = start_ticks / ticks_per_sec;
-                    if uptime > start_sec {
-                        runtime_seconds = uptime - start_sec;
-                    }
-                }
-                // user ticks = field 13, kernel ticks = field 14
-                let utime: u64 = stat_parts.get(13).and_then(|v| v.parse().ok()).unwrap_or(0);
-                let stime: u64 = stat_parts.get(14).and_then(|v| v.parse().ok()).unwrap_or(0);
-                if runtime_seconds > 0 {
-                    let total_cpu_sec = (utime + stime) as f32 / 100.0;
-                    cpu_percent = (total_cpu_sec / (runtime_seconds as f32)) * 100.0;
+                    let mb = (resident_pages * page_size_kb) as f32 / 1024.0;
+                    memory_rss_mb = mb.round(); // Integer MB prevents write thrashing
                 }
             }
         }
@@ -127,25 +127,14 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
             project_name,
             stats: ProcessStats {
                 pid,
-                cpu_percent: (cpu_percent * 10.0).round() / 10.0,
-                memory_rss_mb: (memory_rss_mb * 10.0).round() / 10.0,
-                runtime_seconds,
+                cpu_percent: 0.0,
+                memory_rss_mb,
+                runtime_seconds: 0,
             },
         });
     }
 
     results
-}
-
-fn read_system_uptime() -> u64 {
-    if let Ok(uptime_str) = fs::read_to_string("/proc/uptime") {
-        if let Some(first) = uptime_str.split_whitespace().next() {
-            if let Ok(secs) = first.parse::<f64>() {
-                return secs as u64;
-            }
-        }
-    }
-    0
 }
 
 fn procfs_page_size() -> Result<u64, ()> {

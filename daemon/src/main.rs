@@ -7,7 +7,7 @@ use agy_daemon::state;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -102,11 +102,8 @@ fn collect_state(
     presence_dir: &Path,
     db_path: &Path,
     settings_path: &Path,
-    skills_dir: &Path,
-    builtin_skills_dir: &Path,
-    plugins_dir: &Path,
     brain_dir: &Path,
-    start_time: &Instant,
+    cached_skills: &[agy_daemon::state::SkillItem],
     quota: &agy_daemon::quota::RealQuotaData,
 ) -> AgyState {
     let detected = scan_agy_processes(presence_dir);
@@ -156,6 +153,15 @@ fn collect_state(
             busy_count += 1;
         }
 
+        if title.is_empty() {
+            if p.conversation_id.starts_with("cli-") {
+                title = "Interaktivní CLI (čeká na zadání dotazu)".to_string();
+                last_user_input_time = "Čeká na prompt".to_string();
+            } else {
+                title = format!("AGY sezení {}", p.project_name);
+            }
+        }
+
         let token_usage = read_conversation_token_usage(&p.conversation_id, brain_dir);
 
         active_sessions.push(ActiveSession {
@@ -181,21 +187,15 @@ fn collect_state(
         Vec::new()
     };
 
-    let skills = scan_skills(skills_dir, builtin_skills_dir, plugins_dir);
     let available_models = get_all_available_models();
     let available_agents = get_all_available_agents();
-
-    let epoch_now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
 
     let stats = OverallStats {
         total_active_agents: active_sessions.len(),
         busy_agents_count: busy_count,
-        total_memory_mb: (total_memory * 10.0).round() / 10.0,
-        daemon_uptime_seconds: start_time.elapsed().as_secs(),
-        last_updated_epoch: epoch_now,
+        total_memory_mb: total_memory.round(),
+        daemon_uptime_seconds: 0,
+        last_updated_epoch: 0,
         account_email: quota.account_email.clone(),
         plan_name: quota.plan_name.clone(),
         session_usage_percent: quota.gemini_five_hour.percentage,
@@ -212,24 +212,28 @@ fn collect_state(
         active_sessions,
         recent_conversations: recent,
         settings,
-        skills,
+        skills: cached_skills.to_vec(),
         available_models,
         available_agents,
         real_quota: quota.clone(),
     }
 }
 
-fn write_shared_memory_state(state: &AgyState) {
+fn write_shared_memory_state(state: &AgyState, last_written: &mut String) {
     if let Ok(json_str) = serde_json::to_string(state) {
+        if *last_written == json_str {
+            return;
+        }
         let shm_path = Path::new("/dev/shm/agy-state.json");
         let tmp_path = Path::new("/dev/shm/agy-state.json.tmp");
         if fs::write(tmp_path, json_str.as_bytes()).is_ok() {
             let _ = fs::rename(tmp_path, shm_path);
+            *last_written = json_str;
         }
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let (
@@ -245,17 +249,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command.unwrap_or(Commands::Run) {
         Commands::Dump => {
-            let start = Instant::now();
             let quota = agy_daemon::quota::fetch_quota_sync(&log_dir);
+            let skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
             let st = collect_state(
                 &presence_dir,
                 &db_path,
                 &settings_path,
-                &skills_dir,
-                &builtin_skills_dir,
-                &plugins_dir,
                 &brain_dir,
-                &start,
+                &skills,
                 &quota,
             );
             println!("{}", serde_json::to_string_pretty(&st)?);
@@ -342,22 +343,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[agy-daemon] Initializing Antigravity KDE Plasma 6 Daemon...");
 
-    let start_time = Instant::now();
     let initial_quota = agy_daemon::quota::fetch_quota_sync(&log_dir);
     let quota_arc = Arc::new(Mutex::new(initial_quota.clone()));
+
+    let mut cached_skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
+    let mut last_written_json = String::new();
 
     let initial_state = collect_state(
         &presence_dir,
         &db_path,
         &settings_path,
-        &skills_dir,
-        &builtin_skills_dir,
-        &plugins_dir,
         &brain_dir,
-        &start_time,
+        &cached_skills,
         &initial_quota,
     );
-    write_shared_memory_state(&initial_state);
+    write_shared_memory_state(&initial_state, &mut last_written_json);
+    unsafe { libc::malloc_trim(0); }
 
     let state_arc = Arc::new(Mutex::new(initial_state));
     let dbus_service = AntigravityDbus {
@@ -382,12 +383,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Spawn 60s background task for fetching quota from agy CLI without blocking
+    // Spawn 300s background task for fetching quota from agy CLI without blocking
     let quota_arc_clone = Arc::clone(&quota_arc);
     let log_dir_clone = log_dir.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(60)).await;
+            tokio::time::sleep(Duration::from_secs(300)).await;
             let log_dir_inner = log_dir_clone.clone();
             let new_quota = tokio::task::spawn_blocking(move || {
                 agy_daemon::quota::fetch_quota_sync(&log_dir_inner)
@@ -417,28 +418,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if db_path.exists() {
         let _ = watcher.watch(&db_path, RecursiveMode::NonRecursive);
     }
+    if skills_dir.exists() {
+        let _ = watcher.watch(&skills_dir, RecursiveMode::Recursive);
+    }
+    if plugins_dir.exists() {
+        let _ = watcher.watch(&plugins_dir, RecursiveMode::Recursive);
+    }
 
     println!("[agy-daemon] Monitoring started. Press Ctrl+C to exit.");
 
     let mut notification_tracker = agy_daemon::notifications::NotificationTracker::new();
+    let mut tick_counter: u64 = 0;
 
     // Main loop
     loop {
         tokio::select! {
             _ = sleep(Duration::from_millis(1500)) => {
+                tick_counter += 1;
                 let current_quota = quota_arc.lock().map(|q| q.clone()).unwrap_or_default();
                 let current_state = collect_state(
                     &presence_dir,
                     &db_path,
                     &settings_path,
-                    &skills_dir,
-                    &builtin_skills_dir,
-                    &plugins_dir,
                     &brain_dir,
-                    &start_time,
+                    &cached_skills,
                     &current_quota,
                 );
-                write_shared_memory_state(&current_state);
+                write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(
                     &mut notification_tracker,
                     &current_state,
@@ -446,21 +452,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(mut lock) = state_arc.lock() {
                     *lock = current_state;
                 }
+                if tick_counter % 20 == 0 {
+                    unsafe { libc::malloc_trim(0); }
+                }
             }
-            Some(_event) = rx.recv() => {
+            Some(event) = rx.recv() => {
+                // If skills/plugins changed, refresh cache
+                let paths = event.paths;
+                if paths.iter().any(|p| p.starts_with(&skills_dir) || p.starts_with(&plugins_dir)) {
+                    cached_skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
+                }
+
                 let current_quota = quota_arc.lock().map(|q| q.clone()).unwrap_or_default();
                 let current_state = collect_state(
                     &presence_dir,
                     &db_path,
                     &settings_path,
-                    &skills_dir,
-                    &builtin_skills_dir,
-                    &plugins_dir,
                     &brain_dir,
-                    &start_time,
+                    &cached_skills,
                     &current_quota,
                 );
-                write_shared_memory_state(&current_state);
+                write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(
                     &mut notification_tracker,
                     &current_state,

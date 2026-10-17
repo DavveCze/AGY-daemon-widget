@@ -5,8 +5,8 @@ use crate::state::{AgentOption, ModelOption, SettingsInfo, SkillItem};
 
 pub fn read_settings(settings_file: &Path) -> SettingsInfo {
     let mut info = SettingsInfo {
-        model: "Gemini 3.8 Flash".to_string(),
-        default_model: "gemini-3.8-flash".to_string(),
+        model: "Gemini 3.8 Flash (Medium)".to_string(),
+        default_model: "gemini-3.8-flash-medium".to_string(),
         agent_mode: "accept-edits".to_string(),
         effort: "medium".to_string(),
         sandbox: true,
@@ -37,6 +37,14 @@ pub fn read_settings(settings_file: &Path) -> SettingsInfo {
             if let Some(ns) = json.get("notificationSoundEnabled").and_then(|v| v.as_bool()) {
                 info.notification_sound = ns;
             }
+        }
+    }
+
+    // Auto-migrate obsolete gemini-3.8-flash ID to gemini-3.8-flash-medium
+    if info.default_model == "gemini-3.8-flash" {
+        info.default_model = "gemini-3.8-flash-medium".to_string();
+        if info.model == "Gemini 3.8 Flash" {
+            info.model = "Gemini 3.8 Flash (Medium)".to_string();
         }
     }
 
@@ -116,18 +124,25 @@ pub fn update_notification_sound(settings_file: &Path, sound: bool) -> Result<()
 pub fn get_all_available_models() -> Vec<ModelOption> {
     vec![
         ModelOption {
-            id: "gemini-3.8-flash".to_string(),
-            name: "Gemini 3.8 Flash".to_string(),
+            id: "gemini-3.8-flash-high".to_string(),
+            name: "Gemini 3.8 Flash (High)".to_string(),
             provider: "Gemini".to_string(),
             thinking: true,
             available: true,
         },
         ModelOption {
-            id: "gemini-4-argon".to_string(),
-            name: "Gemini 4 Argon".to_string(),
+            id: "gemini-3.8-flash-medium".to_string(),
+            name: "Gemini 3.8 Flash (Medium)".to_string(),
             provider: "Gemini".to_string(),
             thinking: true,
-            available: false,
+            available: true,
+        },
+        ModelOption {
+            id: "gemini-3.8-flash-low".to_string(),
+            name: "Gemini 3.8 Flash (Low)".to_string(),
+            provider: "Gemini".to_string(),
+            thinking: true,
+            available: true,
         },
         ModelOption {
             id: "claude-sonnet-4-6".to_string(),

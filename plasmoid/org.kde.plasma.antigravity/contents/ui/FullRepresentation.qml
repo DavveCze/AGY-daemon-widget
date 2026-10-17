@@ -932,7 +932,7 @@ Item {
                                 delegate: Rectangle {
                                     id: geminiCard
                                     required property var modelData
-                                    readonly property bool isSelected: (settingsData.default_model === modelData.id || settingsData.model === modelData.name || (modelData.id === "gemini-3.8-flash" && (settingsData.default_model?.indexOf("gemini-3.8-flash") !== -1 || settingsData.model?.indexOf("Gemini 3.8 Flash") !== -1)))
+                                    readonly property bool isSelected: (settingsData.default_model === modelData.id || settingsData.model === modelData.name)
                                     readonly property bool isAvailable: modelData.available !== false
 
                                     Layout.fillWidth: true

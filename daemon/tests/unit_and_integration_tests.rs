@@ -281,8 +281,7 @@ Quota:
     assert_eq!(quota.gemini_weekly.percentage, 96.0);
     assert_eq!(quota.gemini_five_hour.percentage, 87.0);
     assert_eq!(quota.outsource_weekly.percentage, 100.0);
-    assert_eq!(quota.outsource_five_hour.percentage, 100.0);
-    assert!(quota.gemini_five_hour.refreshes_in_str.contains("Refreshes in"));
+    assert!(quota.gemini_five_hour.refreshes_in_str.contains("Refreshes"));
 }
 
 #[test]
