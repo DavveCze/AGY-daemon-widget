@@ -23,6 +23,11 @@ Item {
     readonly property var agentsList: stateData?.available_agents ?? []
     readonly property var realQuota: stateData?.real_quota ?? stateData?.stats?.real_quota ?? ({})
     readonly property color borderColor: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
+    readonly property bool isClaudeSelected: {
+        var defM = (settingsData && settingsData.default_model) ? ("" + settingsData.default_model).toLowerCase() : "";
+        var curM = (settingsData && settingsData.model) ? ("" + settingsData.model).toLowerCase() : "";
+        return defM.indexOf("claude") !== -1 || curM.indexOf("claude") !== -1;
+    }
 
     property var expandedPids: ({})
     property var expandedSkills: ({})
@@ -1127,19 +1132,17 @@ Item {
                         }
 
                         // Thinking Level (Effort) - only shown for Claude models!
-                        readonly property bool isClaudeSelected: (settingsData.default_model?.indexOf("claude") !== -1 || settingsData.model?.toLowerCase()?.indexOf("claude") !== -1)
-
-                        Rectangle {
-                            visible: fullRoot.isClaudeSelected
-                            Layout.fillWidth: true
-                            height: 1
-                            color: fullRoot.borderColor
-                        }
-
                         ColumnLayout {
+                            id: claudeThinkingSection
                             visible: fullRoot.isClaudeSelected
                             Layout.fillWidth: true
                             spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: fullRoot.borderColor
+                            }
 
                             Text {
                                 text: "Výchozí Thinking Level pro Claude (Extended Thinking):"
@@ -1165,7 +1168,7 @@ Item {
                                     delegate: Rectangle {
                                         id: effortItem
                                         required property var modelData
-                                        readonly property bool isSelected: (settingsData.effort ?? "medium") === modelData
+                                        readonly property bool isSelected: ("" + (settingsData?.effort ?? "medium")).toLowerCase() === modelData
 
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 36
