@@ -1,0 +1,161 @@
+use std::collections::HashMap;
+use std::process::Command;
+use tokio::process::Command as TokioCommand;
+
+pub struct NotificationTracker {
+    pub previous_agent_busy: HashMap<u32, bool>,
+    pub last_notified_step: HashMap<u32, i64>,
+    pub previous_5hr_pct: Option<f32>,
+}
+
+impl NotificationTracker {
+    pub fn new() -> Self {
+        Self {
+            previous_agent_busy: HashMap::new(),
+            last_notified_step: HashMap::new(),
+            previous_5hr_pct: None,
+        }
+    }
+}
+
+pub fn send_desktop_notification(
+    summary: &str,
+    body: &str,
+    conv_id: Option<&str>,
+    workspace: Option<&str>,
+    sound: bool,
+) {
+    let mut cmd = Command::new("notify-send");
+    cmd.arg("-a")
+        .arg("Antigravity")
+        .arg("-i")
+        .arg("antigravity")
+        .arg(summary)
+        .arg(body)
+        .arg("-t")
+        .arg("7000");
+
+    if sound {
+        cmd.arg("-h").arg("string:sound-name:message-new-instant");
+    }
+
+    if let (Some(cid), Some(ws)) = (conv_id, workspace) {
+        cmd.arg("-A").arg("open=Otevřít terminál");
+        let cid = cid.to_string();
+        let ws = ws.to_string();
+
+        let mut tokio_cmd = TokioCommand::from(cmd);
+        tokio::spawn(async move {
+            if let Ok(output) = tokio_cmd.output().await {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout.trim() == "open" {
+                    launch_terminal_session(&cid, &ws);
+                }
+            }
+        });
+    } else {
+        let _ = cmd.spawn();
+    }
+}
+
+pub fn launch_terminal_session(conversation_id: &str, workspace: &str) {
+    let ws = if workspace.is_empty() {
+        std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
+    } else {
+        workspace.to_string()
+    };
+
+    let agy_cmd = if conversation_id.is_empty() {
+        "agy".to_string()
+    } else {
+        format!("agy --resume {}", conversation_id)
+    };
+
+    let terminals = ["konsole", "kitty", "alacritty", "wezterm", "xterm"];
+    for term in terminals {
+        if Command::new(term)
+            .arg("--workdir")
+            .arg(&ws)
+            .arg("-e")
+            .arg("bash")
+            .arg("-c")
+            .arg(&agy_cmd)
+            .spawn()
+            .is_ok()
+        {
+            return;
+        }
+    }
+}
+
+pub fn check_and_send_notifications(
+    tracker: &mut NotificationTracker,
+    state: &crate::state::AgyState,
+) {
+    if !state.settings.notifications_enabled {
+        return;
+    }
+
+    // 1. Check agent state transition (Pracuje -> Čeká)
+    let mut current_pids = std::collections::HashSet::new();
+    for session in &state.active_sessions {
+        current_pids.insert(session.pid);
+        let was_busy = tracker.previous_agent_busy.get(&session.pid).copied().unwrap_or(false);
+        let is_busy = session.not_fully_idle;
+
+        // Transition from busy (true) to waiting/idle (false)
+        if was_busy && !is_busy {
+            let already_notified = tracker
+                .last_notified_step
+                .get(&session.pid)
+                .map(|&s| s == session.step_count && s > 0)
+                .unwrap_or(false);
+
+            if !already_notified {
+                tracker.last_notified_step.insert(session.pid, session.step_count);
+                let proj = if session.project_name.is_empty() {
+                    "Antigravity".to_string()
+                } else {
+                    session.project_name.clone()
+                };
+                let summary = format!("Agent dokončil úlohu [{}]", proj);
+                let body = format!("Agent '{}' dokončil práci a čeká na vaše pokyny.", session.agent_name);
+                send_desktop_notification(
+                    &summary,
+                    &body,
+                    Some(&session.conversation_id),
+                    Some(&session.workspace_path),
+                    state.settings.notification_sound,
+                );
+            }
+        }
+
+        tracker.previous_agent_busy.insert(session.pid, is_busy);
+    }
+
+    // Retain only currently active PIDs
+    tracker.previous_agent_busy.retain(|pid, _| current_pids.contains(pid));
+    tracker.last_notified_step.retain(|pid, _| current_pids.contains(pid));
+
+    // 2. Check 5-hour quota reset
+    // User condition: must have had < 95.0% remaining (<95% limit remaining) prior to reset
+    let current_5hr = state.stats.real_quota.gemini_five_hour.percentage;
+    if let Some(prev_pct) = tracker.previous_5hr_pct {
+        if prev_pct < 95.0 && current_5hr >= 95.0 {
+            let summary = "Obnova 5h AI kvóty".to_string();
+            let body = format!(
+                "5hodinové okno pro Gemini se obnovilo na {}%. Máte k dispozici čerstvou kapacitu.",
+                current_5hr
+            );
+            send_desktop_notification(
+                &summary,
+                &body,
+                None,
+                None,
+                state.settings.notification_sound,
+            );
+        }
+    }
+    tracker.previous_5hr_pct = Some(current_5hr);
+}
+
