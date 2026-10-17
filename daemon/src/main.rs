@@ -139,9 +139,11 @@ fn collect_state(
         }
 
         // Live real-time check from kernel procfs & live transcript:
+        let mut is_asking_user = false;
         let has_children = proc_monitor::has_child_processes(p.pid);
         if let Some(live) = db_reader::get_live_transcript_status(&p.conversation_id, brain_dir) {
             not_fully_idle = live.is_busy || has_children;
+            is_asking_user = live.is_asking_user;
             if live.step_index > step_count {
                 step_count = live.step_index;
             }
@@ -174,6 +176,7 @@ fn collect_state(
             current_mode: settings.agent_mode.clone(),
             current_effort: settings.effort.clone(),
             not_fully_idle,
+            is_asking_user,
             step_count,
             last_user_input_time,
             stats: p.stats,

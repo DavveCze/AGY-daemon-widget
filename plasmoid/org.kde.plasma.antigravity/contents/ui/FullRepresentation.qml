@@ -1126,40 +1126,79 @@ Item {
                             }
                         }
 
+                        // Thinking Level (Effort) - only shown for Claude models!
+                        readonly property bool isClaudeSelected: (settingsData.default_model?.indexOf("claude") !== -1 || settingsData.model?.toLowerCase()?.indexOf("claude") !== -1)
+
                         Rectangle {
+                            visible: fullRoot.isClaudeSelected
                             Layout.fillWidth: true
                             height: 1
                             color: fullRoot.borderColor
                         }
 
-                        // Thinking Level (Effort)
-                        Text {
-                            text: "Výchozí Thinking Level (Effort):"
-                            font.bold: true
-                            font.pixelSize: 13
-                            color: Kirigami.Theme.textColor
-                        }
-
-                        RowLayout {
+                        ColumnLayout {
+                            visible: fullRoot.isClaudeSelected
                             Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
+                            spacing: 8
 
-                            Repeater {
-                                model: ["low", "medium", "high", "xhigh", "max"]
-                                delegate: PlasmaComponents3.Button {
-                                    required property var modelData
-                                    text: modelData
-                                    Layout.fillWidth: true
-                                    readonly property bool isGemini: (settingsData.default_model?.indexOf("gemini-3.8-flash") !== -1)
-                                    readonly property bool isGpt: (settingsData.default_model?.indexOf("gpt-oss") !== -1)
-                                    readonly property bool isSupported: isGpt ? (modelData === "medium") : (isGemini ? (modelData === "low" || modelData === "medium" || modelData === "high") : true)
-                                    enabled: isSupported
-                                    opacity: isSupported ? 1.0 : 0.35
-                                    highlighted: (settingsData.effort ?? "medium") === modelData
-                                    PlasmaComponents3.ToolTip.text: !isSupported ? ("Úroveň '" + modelData + "' není tímto modelem podporována") : ("Nastavit thinking effort na " + modelData)
-                                    onClicked: {
-                                        if (isSupported) {
-                                            root.setDefaultEffort(modelData);
+                            Text {
+                                text: "Výchozí Thinking Level pro Claude (Extended Thinking):"
+                                font.bold: true
+                                font.pixelSize: 13
+                                color: Kirigami.Theme.textColor
+                            }
+
+                            Text {
+                                text: "Určuje rozpočet uvažování tokenů pro modely Claude Sonnet a Opus (od minima po maximum)."
+                                font.pixelSize: 11
+                                color: Kirigami.Theme.disabledTextColor
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Repeater {
+                                    model: ["low", "medium", "high", "xhigh", "max"]
+                                    delegate: Rectangle {
+                                        id: effortItem
+                                        required property var modelData
+                                        readonly property bool isSelected: (settingsData.effort ?? "medium") === modelData
+
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 36
+                                        radius: Kirigami.Units.smallSpacing
+
+                                        color: isSelected ? "#ea580c" : Kirigami.Theme.alternateBackgroundColor
+                                        border.color: isSelected ? "#f97316" : fullRoot.borderColor
+                                        border.width: isSelected ? 2 : 1
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.setDefaultEffort(effortItem.modelData)
+                                        }
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 4
+
+                                            Kirigami.Icon {
+                                                visible: effortItem.isSelected
+                                                source: "checkmark"
+                                                Layout.preferredWidth: 14
+                                                Layout.preferredHeight: 14
+                                                color: "#ffffff"
+                                            }
+
+                                            Text {
+                                                text: effortItem.modelData
+                                                font.bold: effortItem.isSelected
+                                                font.pixelSize: 11
+                                                color: effortItem.isSelected ? "#ffffff" : Kirigami.Theme.textColor
+                                            }
                                         }
                                     }
                                 }

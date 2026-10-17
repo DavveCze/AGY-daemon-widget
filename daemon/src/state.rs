@@ -30,6 +30,8 @@ pub struct ActiveSession {
     pub current_mode: String,
     pub current_effort: String,
     pub not_fully_idle: bool,
+    #[serde(default)]
+    pub is_asking_user: bool,
     pub step_count: i64,
     pub last_user_input_time: String,
     pub stats: ProcessStats,

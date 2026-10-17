@@ -103,23 +103,36 @@ pub fn check_and_send_notifications(
         let was_busy = tracker.previous_agent_busy.get(&session.pid).copied().unwrap_or(false);
         let is_busy = session.not_fully_idle;
 
-        // Transition from busy (true) to waiting/idle (false)
-        if was_busy && !is_busy {
-            let already_notified = tracker
-                .last_notified_step
-                .get(&session.pid)
-                .map(|&s| s == session.step_count && s > 0)
-                .unwrap_or(false);
+        let already_notified = tracker
+            .last_notified_step
+            .get(&session.pid)
+            .map(|&s| s == session.step_count && s > 0)
+            .unwrap_or(false);
 
-            if !already_notified {
+        let proj = if session.project_name.is_empty() {
+            "Antigravity".to_string()
+        } else {
+            session.project_name.clone()
+        };
+
+        if !already_notified {
+            if session.is_asking_user {
+                // Případ a): Agent se potřebuje poradit nebo čeká na odpověď uživatele (ask_question)
                 tracker.last_notified_step.insert(session.pid, session.step_count);
-                let proj = if session.project_name.is_empty() {
-                    "Antigravity".to_string()
-                } else {
-                    session.project_name.clone()
-                };
+                let summary = format!("Agent se potřebuje poradit [{}]", proj);
+                let body = format!("Agent '{}' čeká na vaše rozhodnutí nebo odpověď na dotaz.", session.agent_name);
+                send_desktop_notification(
+                    &summary,
+                    &body,
+                    Some(&session.conversation_id),
+                    Some(&session.workspace_path),
+                    state.settings.notification_sound,
+                );
+            } else if was_busy && !is_busy {
+                // Případ b): Agent dokončil CELOU svou práci (žádné další tool cally) a čeká na nový prompt
+                tracker.last_notified_step.insert(session.pid, session.step_count);
                 let summary = format!("Agent dokončil úlohu [{}]", proj);
-                let body = format!("Agent '{}' dokončil práci a čeká na vaše pokyny.", session.agent_name);
+                let body = format!("Agent '{}' dokončil celou práci a čeká na vaše pokyny.", session.agent_name);
                 send_desktop_notification(
                     &summary,
                     &body,

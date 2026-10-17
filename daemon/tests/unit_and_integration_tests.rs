@@ -38,6 +38,7 @@ fn test_state_serialization_roundtrip() {
             current_mode: "auto".to_string(),
             current_effort: "medium".to_string(),
             not_fully_idle: true,
+            is_asking_user: false,
             step_count: 15,
             last_user_input_time: "2026-10-17 12:00:00".to_string(),
             stats: ProcessStats {
@@ -337,7 +338,15 @@ fn test_live_transcript_status_busy_detection() {
     fs::write(&transcript, "{\"step_index\": 4, \"type\": \"PLANNER_RESPONSE\", \"status\": \"DONE\", \"tool_calls\": []}\n").unwrap();
     let status = get_live_transcript_status(conv_id, dir.path()).expect("Status must be detected");
     assert!(!status.is_busy, "Agent must be idle when final response is presented with no tool calls");
+    assert!(!status.is_asking_user, "Agent must not be asking user on final response");
     assert_eq!(status.step_index, 4);
+
+    // Case 5: Interactive question (ask_question) -> asking user (is_busy = false, is_asking_user = true)
+    fs::write(&transcript, "{\"step_index\": 5, \"type\": \"PLANNER_RESPONSE\", \"status\": \"DONE\", \"tool_calls\": [{\"name\": \"ask_question\"}]}\n").unwrap();
+    let status = get_live_transcript_status(conv_id, dir.path()).expect("Status must be detected");
+    assert!(!status.is_busy, "Agent must not be busy when waiting on ask_question");
+    assert!(status.is_asking_user, "Agent must be marked as asking user");
+    assert_eq!(status.step_index, 5);
 }
 
 #[test]

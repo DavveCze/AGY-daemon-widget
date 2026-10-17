@@ -163,6 +163,7 @@ pub fn get_recent_conversations(
 #[derive(Debug, Clone, Copy)]
 pub struct LiveStatus {
     pub is_busy: bool,
+    pub is_asking_user: bool,
     pub step_index: i64,
 }
 
@@ -202,29 +203,40 @@ pub fn get_live_transcript_status(conv_id: &str, brain_dir: &Path) -> Option<Liv
     let step_index = json.get("step_index").and_then(|v| v.as_i64()).unwrap_or(0);
     let step_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
-    let is_busy = match step_type {
-        "USER_INPUT" => true,
-        "GENERIC" => true,
+    let (is_busy, is_asking_user) = match step_type {
         "PLANNER_RESPONSE" => {
             if let Some(tool_calls) = json.get("tool_calls").and_then(|v| v.as_array()) {
                 if tool_calls.is_empty() {
-                    false
+                    // Turn finished completely! No pending tool calls.
+                    (false, false)
                 } else {
-                    // Check if waiting on user interactive question
-                    let is_asking_user = tool_calls.iter().any(|tc| {
+                    // Check if waiting on user interactive question / consultation
+                    let is_asking = tool_calls.iter().any(|tc| {
                         tc.get("name").and_then(|n| n.as_str()) == Some("ask_question")
                     });
-                    !is_asking_user
+                    if is_asking {
+                        (false, true)
+                    } else {
+                        // Still executing other tools / subtasks
+                        (true, false)
+                    }
                 }
             } else {
-                false
+                // Final answer without tool calls
+                (false, false)
             }
         }
-        _ => false,
+        // During tool execution, subtask execution or system messages, agent is ALWAYS busy!
+        "USER_INPUT" => (true, false),
+        "GENERIC" => (true, false),
+        "SYSTEM_MESSAGE" => (true, false),
+        "EPHEMERAL_MESSAGE" => (true, false),
+        _ => (true, false),
     };
 
     Some(LiveStatus {
         is_busy,
+        is_asking_user,
         step_index,
     })
 }
