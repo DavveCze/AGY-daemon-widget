@@ -62,6 +62,15 @@ pub fn update_model_setting(
     if let Some(obj) = json.as_object_mut() {
         obj.insert("defaultModel".to_string(), Value::String(model_id.to_string()));
         obj.insert("model".to_string(), Value::String(display_name.to_string()));
+
+        // Automatically synchronize effort setting if model has a fixed thinking level in its ID
+        if model_id.ends_with("-high") {
+            obj.insert("effort".to_string(), Value::String("high".to_string()));
+        } else if model_id.ends_with("-medium") {
+            obj.insert("effort".to_string(), Value::String("medium".to_string()));
+        } else if model_id.ends_with("-low") {
+            obj.insert("effort".to_string(), Value::String("low".to_string()));
+        }
     }
 
     let serialized = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
@@ -88,6 +97,18 @@ pub fn update_effort_setting(settings_file: &Path, effort: &str) -> Result<(), S
 
     if let Some(obj) = json.as_object_mut() {
         obj.insert("effort".to_string(), Value::String(effort.to_string()));
+
+        // If current model is Gemini 3.8 Flash, synchronize model tier with the selected effort
+        let current_dm = obj.get("defaultModel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if current_dm.starts_with("gemini-3.8-flash") {
+            let (new_id, new_name) = match effort {
+                "high" => ("gemini-3.8-flash-high", "Gemini 3.8 Flash (High)"),
+                "low" => ("gemini-3.8-flash-low", "Gemini 3.8 Flash (Low)"),
+                _ => ("gemini-3.8-flash-medium", "Gemini 3.8 Flash (Medium)"),
+            };
+            obj.insert("defaultModel".to_string(), Value::String(new_id.to_string()));
+            obj.insert("model".to_string(), Value::String(new_name.to_string()));
+        }
     }
 
     let serialized = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;

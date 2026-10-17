@@ -1150,8 +1150,18 @@ Item {
                                     required property var modelData
                                     text: modelData
                                     Layout.fillWidth: true
+                                    readonly property bool isGemini: (settingsData.default_model?.indexOf("gemini-3.8-flash") !== -1)
+                                    readonly property bool isGpt: (settingsData.default_model?.indexOf("gpt-oss") !== -1)
+                                    readonly property bool isSupported: isGpt ? (modelData === "medium") : (isGemini ? (modelData === "low" || modelData === "medium" || modelData === "high") : true)
+                                    enabled: isSupported
+                                    opacity: isSupported ? 1.0 : 0.35
                                     highlighted: (settingsData.effort ?? "medium") === modelData
-                                    onClicked: root.setDefaultEffort(modelData)
+                                    PlasmaComponents3.ToolTip.text: !isSupported ? ("Úroveň '" + modelData + "' není tímto modelem podporována") : ("Nastavit thinking effort na " + modelData)
+                                    onClicked: {
+                                        if (isSupported) {
+                                            root.setDefaultEffort(modelData);
+                                        }
+                                    }
                                 }
                             }
                         }
