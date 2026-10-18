@@ -4,30 +4,40 @@
 [![Qt 6](https://img.shields.io/badge/Qt-6.8%2B-41cd52?style=for-the-badge&logo=qt&logoColor=white)](https://www.qt.io/)
 [![Rust](https://img.shields.io/badge/Rust-2024%20Edition-black?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Linux Native](https://img.shields.io/badge/Linux-Kernel%20inotify%20%26%20procfs-fbc02d?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
+[![Tests](https://img.shields.io/badge/Tests-35%20passed-success?style=for-the-badge)](tests/)
+[![Security](https://img.shields.io/badge/Security-POSIX%200600%20%7C%20Kernel%20UID-blueviolet?style=for-the-badge)](docs/WALKTHROUGH.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-An ultra-responsive, modular, zero-overhead KDE Plasma 6 plasmoid and Linux procfs daemon for monitoring and controlling AI CLI coding agents: **Google Antigravity CLI (`agy`)**, **Anthropic Claude Code (`claude`)**, and **OpenAI Codex CLI (`codex`)**.
+An ultra-responsive, modular, zero-overhead KDE Plasma 6 plasmoid and Linux procfs daemon for monitoring and controlling AI CLI coding agents:
+* 🔵 **Google Antigravity CLI (`agy`)**
+* 🟠 **Anthropic Claude Code (`claude`)**
+* 🟢 **OpenAI Codex CLI (`codex`)**
 
 ---
 
-## 📸 Highlights & Features
+## 📚 Documentation
+* 📖 **[Comprehensive Technical Walkthrough](docs/WALKTHROUGH.md):** In-depth architecture, kernel security, IPC protocol, and testing strategy.
+* 👤 **[Client & User Manual](docs/CLIENT_MANUAL.md):** User-friendly guide for daily usage, FAQ, and troubleshooting.
+
+---
+
+## 📸 Key Features & Architecture Highlights
 
 - **⚡ Zero Idle Overhead:** Event-driven architecture powered by Linux kernel `inotify` and `/proc` polling. Consumes **0.00% CPU** when idle.
-- **🔌 Multi-Provider Modular Architecture:** Pluggable provider system (`AgentProvider` trait) with selective module enablement (`~/.config/agenticom/config.json`).
+- **🛡️ Linux Kernel Security & Sandboxing:**
+  - **Process Protection:** D-Bus and CLI `kill` commands verify target PIDs against active AI session whitelists and kernel UID (`/proc/{pid}/status`), preventing unauthorized signaling of system or user processes.
+  - **Shared Memory Isolation:** Writes state to `/dev/shm/agenticom-state.json` strictly with POSIX mode `0600` and atomic `rename`, blocking local eavesdropping and symlink attacks.
+  - **Shell Injection Immunity:** Direct vector execution for terminals (`konsole`, `kitty`, `alacritty`, `wezterm`, `xterm`) without `bash -c`, with path sanitization and conversation UUID whitelist validation.
+- **🔌 Multi-Provider Modular Architecture:** Pluggable provider system (`AgentProvider` trait) configurable in `~/.config/agenticom/config.json`:
   - 🔵 **Google Antigravity Provider:** Native `agy` process tracking, Gemini 3.8 Flash, 5-hour quota reset tracking, and 45+ skill indexing.
-  - 🟠 **Anthropic Claude Code Provider:** Native `claude` CLI process detection, Sonnet 3.7 / Opus 4 token tracking, project transcripts, and user prompt alerts.
-  - 🟢 **OpenAI Codex Provider:** Dedicated provider scaffold for OpenAI Codex CLI sessions.
-- **🚀 Sub-millisecond UI Latency:** Plasmoid reads state directly from Linux RAM tmpfs (`/dev/shm/agenticom-state.json` with fallback to `agy-state.json`) with zero disk I/O.
-- **🎯 Live Agent Supervision:**
-  - Real-time CPU % and RSS memory tracking per agent session.
-  - Smart status detection: reliably distinguishes active code generation from waiting for user confirmation (`waiting_for_input` / asking user).
-  - Categorized provider filter pills (`[Vše]` `[AGY]` `[Claude]`) in the session dashboard.
-  - One-click Terminal Attach (`konsole`, `wezterm`, `kitty`, `alacritty`, `ghostty`).
-  - Instant process termination (`SIGTERM` / `SIGKILL`).
-- **📜 Multi-Agent Conversation History:** Inspects session summaries and timestamps across all active providers.
-- **⚙️ Model & Session Switching:**
-  - Quick model selection: **Gemini 3.8 Flash (High/Medium/Low)**, **Claude Sonnet 4.6 (Thinking)**, **Claude Opus 4.6 (Thinking)**, and **GPT-OSS 120B (Medium)**.
-  - Automatic thinking level tuning for Claude models with visual orange highlight.
+  - 🟠 **Anthropic Claude Code Provider:** Native `claude` CLI process detection, Sonnet 3.7 / Opus 4.6 token tracking, project transcripts, and user prompt alerts.
+  - 🟢 **OpenAI Codex Provider:** Native detection for Codex CLI sessions (`o3-mini`, `o1`, `gpt-4o`) with subprocess tracking.
+- **🧠 Behavioral UX & CRO Optimization:**
+  - **Hick's Law (Single Primary CTA):** Prominent primary action button for starting sessions, with isolated secondary stop actions.
+  - **Fitts's Law (Touch-Friendly Hitboxes):** 34×34 px action buttons with protective spacing and 30 px filter pills.
+  - **Peripheral Provider Recognition:** 3 px vertical color stripe on session cards matching each AI provider.
+  - **Actionable Empty States:** Contextual CTAs tailored to active filters.
+- **🚀 Sub-millisecond UI Latency:** Plasmoid reads state directly from Linux RAM tmpfs (`/dev/shm/agenticom-state.json`) with zero physical disk I/O.
 
 ---
 
@@ -41,10 +51,10 @@ flowchart TD
     end
 
     subgraph Memory["RAM (Linux tmpfs)"]
-        ShmState["/dev/shm/agenticom-state.json\n(Atomic multi-provider state in RAM)"]
+        ShmState["/dev/shm/agenticom-state.json\n(Atomic multi-provider state, Mode: 0600)"]
     end
 
-    subgraph Daemon["AgentiCom Daemon (Rust)"]
+    subgraph Daemon["AgentiCom Daemon (Rust 2024)"]
         Registry["Provider Registry\n(~/.config/agenticom/config.json)"]
         P_AGY["AntigravityProvider (Gemini)"]
         P_Claude["ClaudeProvider (Anthropic)"]
@@ -68,14 +78,14 @@ flowchart TD
 
     P_AGY -->|Procfs & DB| A_AGY
     P_Claude -->|Procfs & Transcripts| A_Claude
-    P_Codex -->|Procfs| A_Codex
+    P_Codex -->|Procfs & Children| A_Codex
 
-    Daemon -->|Atomic write| ShmState
+    Daemon -->|Atomic secure write| ShmState
 ```
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Quick Start
 
 ### Option 1: Quick Install (Prebuilt Binaries)
 
@@ -90,37 +100,35 @@ cd antigravity-plasma6-widget-v1.0.0-linux-x86_64
 ./install.sh
 ```
 
-### Option 2: Build from Source (Native CPU Optimization)
+### Option 2: Build from Source
 
 Requires `cargo` (Rust) and KDE Plasma 6 development tools:
 
 ```bash
 # Clone the repository
-git clone https://github.com/DavveCze/AGY-daemon-widget.git
-cd AGY-daemon-widget
+git clone https://github.com/DavveCze/AgentiCom.git
+cd AgentiCom
 
-# Run the installer (compiles with -C target-cpu=native)
+# Run the installer (compiles optimized binary)
 ./install.sh
 ```
 
-### What `install.sh` Does:
-1. Installs `agy-daemon` into `~/.local/bin/agy-daemon`.
-2. Installs the plasmoid into `~/.local/share/plasma/plasmoids/org.kde.plasma.antigravity`.
-3. Registers the application icon in `~/.local/share/icons/hicolor/scalable/apps/antigravity.svg`.
-4. Creates and activates the systemd user service `agy-daemon.service`.
-5. Verifies `/dev/shm/agy-state.json` activation.
+### Selective Provider Installation:
+You can choose which providers to enable during installation:
+```bash
+./install.sh --modules=antigravity,claude
+```
 
 ---
 
-## 🖥️ Usage & Adding to Panel
+## 🖥️ Usage & Desktop Integration
 
 ### Adding to KDE Plasma Panel
 1. Right-click any empty space on your Plasma panel and select **Add Widgets...** (or press `Meta + T`).
-2. Type **Antigravity** into the search bar.
-3. Drag **Antigravity Agent Monitor** onto your panel or into the System Tray.
+2. Search for **AgentiCom: AI CLI Monitor**.
+3. Drag the widget onto your panel or into the System Tray.
 
 ### Standalone Window Preview (For Testing)
-You can open the widget directly in a floating window without adding it to the panel:
 ```bash
 plasmawindowed org.kde.plasma.antigravity
 ```
@@ -128,89 +136,34 @@ plasmawindowed org.kde.plasma.antigravity
 ### Managing the Background Daemon
 ```bash
 # Check service status
-systemctl --user status agy-daemon.service
+systemctl --user status agenticom-daemon.service
 
 # View live daemon logs
-journalctl --user -u agy-daemon.service -f
+journalctl --user -u agenticom-daemon.service -f
 
 # Restart daemon
-systemctl --user restart agy-daemon.service
+systemctl --user restart agenticom-daemon.service
 
-# Print current state JSON directly
-agy-daemon dump
+# Dump current JSON state
+agenticom-daemon dump
 ```
 
 ---
 
-## 📂 Repository Structure
+## 🧪 Comprehensive Verification
 
-```
-AGY-daemon-widget/
-├── daemon/                     # High-performance Rust daemon
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── main.rs             # CLI entrypoint & service loop
-│   │   ├── proc_monitor.rs     # /proc/[pid]/stat & /proc/locks reader
-│   │   ├── db_reader.rs        # SQLite WAL reader for conversations
-│   │   ├── dbus_service.rs     # org.kde.plasma.antigravity D-Bus interface
-│   │   ├── settings_manager.rs # agy settings.json reader/writer
-│   │   ├── quota.rs            # 5-hour quota calculator & limiter
-│   │   ├── notifications.rs    # Smart desktop notifications (libnotify/D-Bus)
-│   │   └── state.rs            # Data models & JSON serialization
-│   └── tests/                  # Rust unit & integration tests
-├── plasmoid/                   # KDE Plasma 6 Plasmoid
-│   └── org.kde.plasma.antigravity/
-│       ├── metadata.json       # Plasmoid metadata & Plasma 6 definition
-│       └── contents/
-│           ├── assets/         # SVG icons & branding
-│           └── ui/
-│               ├── main.qml                    # Root item & data synchronization
-│               ├── CompactRepresentation.qml   # Panel icon, badge & pulsing dot
-│               └── FullRepresentation.qml      # 4-tab interactive dashboard
-├── systemd/
-│   └── agy-daemon.service      # User systemd service unit
-├── tests/
-│   └── test_plasmoid.py        # Automated QML syntax & structure validator
-├── install.sh                  # One-click installer & uninstaller
-├── test.sh                     # Complete test suite runner (Rust + QML + D-Bus)
-├── build-release.sh            # Release packager & binary stripper
-├── README.md                   # Project documentation
-└── LICENSE                     # MIT License
-```
+AgentiCom includes an automated test runner:
 
----
-
-## 🛠️ Development & Customization Guide
-
-### Hot-Reloading QML During Development
-Because the plasmoid reads state via `/dev/shm/agy-state.json`, you can make changes to QML files and preview them instantly without restarting Plasma:
-```bash
-# Run standalone window
-plasmawindowed org.kde.plasma.antigravity
-```
-Whenever you edit [FullRepresentation.qml](file:///home/david/Projekty/AGY_Widget/plasmoid/org.kde.plasma.antigravity/contents/ui/FullRepresentation.qml), simply close and re-run `plasmawindowed`.
-
-### Running the Test Suite
-The project includes a comprehensive automated test runner:
 ```bash
 ./test.sh
 ```
-This script executes:
-1. **Rust Unit & Integration Tests (10/10):** Validates procfs parsing, lock detection, quota calculations, settings manipulation, and state serialization.
-2. **QML Syntax Validation (`qmllint`):** Verifies all QML files adhere to strict Qt 6 / KDE Plasma 6 standards.
-3. **Plasma Package Verification (`kpackagetool6`):** Checks package registry validity.
-4. **D-Bus Responsiveness:** Tests IPC calls against `org.kde.plasma.antigravity`.
-5. **Systemd Unit Status:** Verifies the user service is running healthy.
 
-### Packaging a New Release
-To compile a stripped binary and generate distribution archives:
-```bash
-./build-release.sh
-```
-This generates:
-- `dist/antigravity-plasma6-widget-vX.Y.Z-linux-x86_64.tar.gz` (Complete standalone bundle with prebuilt binary).
-- `dist/org.kde.plasma.antigravity.plasmoid` (Plasma package archive).
-- SHA256 checksum files for verification.
+The test runner validates:
+1. **Rust Unit & Integration Tests (35 Tests):** Process isolation, SQLite reader, quota parsing, multi-provider registry, kernel security guardrails, and settings synchronization.
+2. **QML Syntax Validation (`qmllint`):** Strict verification of all QML files against Qt 6 standards.
+3. **Plasma Package Verification (`kpackagetool6`):** Validates plasmoid registration.
+4. **D-Bus Responsiveness:** Tests IPC calls against `org.kde.plasma.antigravity`.
+5. **Systemd User Unit:** Verifies healthy background service execution.
 
 ---
 
@@ -220,30 +173,18 @@ The daemon exposes an IPC interface on the session bus under `org.kde.plasma.ant
 
 | Method | Signature | Description |
 | :--- | :--- | :--- |
-| `GetActiveAgentsCount` | `() -> (u32)` | Returns the number of active `agy` processes. |
-| `KillAgent` | `(u32 pid, bool force) -> (bool)` | Sends `SIGTERM` (force=false) or `SIGKILL` (force=true) to PID. |
-| `TriggerStateUpdate` | `() -> ()` | Forces an immediate scan and writes fresh state to shared memory. |
-| `SetDefaultModel` | `(string model_id) -> (bool)` | Updates default model in `~/.gemini/antigravity-cli/settings.json`. |
-| `SetAgentMode` | `(string mode) -> (bool)` | Changes agent mode (`auto`, `accept-edits`, `plan`). |
-
----
-
-## ❓ FAQ & Troubleshooting
-
-### Widget shows "No active sessions" even though `agy` is running
-- Antigravity tracks active CLI sessions via file locks in `~/.gemini/antigravity-cli/presence/*.lock`. Verify that this folder exists.
-- Run `agy-daemon dump` in your terminal to see raw state data detected by the daemon.
-
-### How to uninstall cleanly?
-Run the installer with the `--uninstall` flag:
-```bash
-./install.sh --uninstall
-```
-This will cleanly stop and remove the systemd service, plasmoid files, daemon binary, and shared memory files.
+| `get_state_json` | `() -> String` | Returns the complete serialized system state. |
+| `get_active_count` | `() -> u32` | Returns the number of active AI sessions. |
+| `kill_session` | `(u32 pid) -> bool` | Securely terminates a verified AI session with UID checks. |
+| `launch_session` | `(String workspace) -> bool` | Launches a new terminal session in the given workspace. |
+| `resume_session` | `(String conv_id, String workspace) -> bool` | Attaches terminal to an existing conversation. |
+| `set_model` | `(String model) -> bool` | Updates the default AI model. |
+| `set_effort` | `(String effort) -> bool` | Updates reasoning effort (`low`, `medium`, `high`, `max`). |
+| `set_agent_mode` | `(String mode) -> bool` | Updates agent mode (`auto`, `accept-edits`, `plan`). |
 
 ---
 
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
-Feel free to contribute, open issues, or submit pull requests!
+Contributions, feedback, and pull requests are welcome!
