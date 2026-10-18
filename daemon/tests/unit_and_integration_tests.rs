@@ -56,6 +56,8 @@ fn test_state_serialization_roundtrip() {
                 context_limit: 1_000_000,
                 session_percentage: 8.3,
             },
+            provider: "antigravity".to_string(),
+            provider_badge_color: "#3b82f6".to_string(),
         }],
         recent_conversations: vec![ConversationItem {
             conversation_id: "conv-abc-123".to_string(),
@@ -66,6 +68,7 @@ fn test_state_serialization_roundtrip() {
             workspace_uris: "[\"file:///home/david/project\"]".to_string(),
             agent_name: "self".to_string(),
             token_usage: TokenUsage::default(),
+            provider: "antigravity".to_string(),
         }],
         settings: SettingsInfo {
             model: "Gemini 3.8 Flash (Medium)".to_string(),
@@ -97,6 +100,7 @@ fn test_state_serialization_roundtrip() {
             description: "Plný univerzální AI agent".to_string(),
         }],
         real_quota: agy_daemon::quota::RealQuotaData::default(),
+        active_providers: vec!["antigravity".to_string(), "claude".to_string()],
     };
 
     let json_str = serde_json::to_string(&state).expect("Serialization failed");
@@ -417,4 +421,43 @@ description: >
     assert!(s.description.contains("Proskenuje existující SQL soubory"));
     assert!(s.path.ends_with("SKILL.md"));
 }
+
+#[test]
+fn test_agenticom_config_defaults_and_serialization() {
+    use agy_daemon::config::AgentiComConfig;
+
+    let dir = tempdir().expect("Failed to create tempdir");
+    let cfg_path = dir.path().join("config.json");
+
+    let loaded = AgentiComConfig::load_or_default(&cfg_path);
+    assert_eq!(loaded.poll_interval_ms, 1000);
+    assert!(loaded.providers.antigravity.enabled);
+    assert!(loaded.providers.claude.enabled);
+    assert!(!loaded.providers.codex.enabled);
+
+    // Verify file was written
+    assert!(cfg_path.exists());
+}
+
+#[test]
+fn test_provider_registry_multi_provider() {
+    use agy_daemon::config::AgentiComConfig;
+    use agy_daemon::providers::ProviderRegistry;
+
+    let dir = tempdir().expect("Failed to create tempdir");
+    let cfg = AgentiComConfig::default();
+
+    let registry = ProviderRegistry::new(
+        &cfg,
+        &dir.path().join("presence"),
+        &dir.path().join("conv.db"),
+        &dir.path().join("brain"),
+    );
+
+    let active_ids = registry.active_provider_ids();
+    assert!(active_ids.contains(&"antigravity".to_string()));
+    assert!(active_ids.contains(&"claude".to_string()));
+    assert!(!active_ids.contains(&"codex".to_string()));
+}
+
 

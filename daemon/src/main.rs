@@ -1,8 +1,3 @@
-use agy_daemon::db_reader;
-use agy_daemon::dbus_service;
-use agy_daemon::proc_monitor;
-use agy_daemon::settings_manager;
-use agy_daemon::state;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,21 +9,18 @@ use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::time::sleep;
 use zbus::connection::Builder;
 
-use crate::db_reader::{
-    get_conversation_metadata, get_recent_conversations, open_db_readonly,
-    read_conversation_token_usage,
-};
-use crate::dbus_service::AntigravityDbus;
-use crate::proc_monitor::scan_agy_processes;
-use crate::settings_manager::{
+use agy_daemon::config::AgentiComConfig;
+use agy_daemon::dbus_service::AntigravityDbus;
+use agy_daemon::providers::ProviderRegistry;
+use agy_daemon::settings_manager::{
     get_all_available_agents, get_all_available_models, read_settings, scan_skills,
     update_agent_mode, update_effort_setting, update_model_setting,
     update_notifications_enabled, update_notification_sound,
 };
-use crate::state::{ActiveSession, AgyState, OverallStats};
+use agy_daemon::state::{AgyState, OverallStats};
 
 #[derive(Parser, Debug)]
-#[command(author = "David", version = "1.0", about = "Antigravity KDE Plasma 6 Kernel & Procfs Monitor Daemon")]
+#[command(author = "David", version = "1.0", about = "AgentiCom: AI CLI Monitoring System Daemon")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -99,96 +91,25 @@ fn get_base_paths() -> (
 
 
 fn collect_state(
-    presence_dir: &Path,
-    db_path: &Path,
+    registry: &ProviderRegistry,
     settings_path: &Path,
-    brain_dir: &Path,
     cached_skills: &[agy_daemon::state::SkillItem],
     quota: &agy_daemon::quota::RealQuotaData,
 ) -> AgyState {
-    let detected = scan_agy_processes(presence_dir);
     let settings = read_settings(settings_path);
+    let active_sessions = registry.scan_all_sessions();
+    let recent = registry.get_all_recent_conversations(15);
+    let active_providers = registry.active_provider_ids();
 
-    // Open DB read-only
-    let db_conn = open_db_readonly(db_path).ok();
-
-    let mut active_sessions = Vec::new();
     let mut busy_count = 0;
     let mut total_memory = 0.0;
 
-    for p in detected {
-        total_memory += p.stats.memory_rss_mb;
-        let mut title = String::new();
-        let mut agent_name = String::from("self");
-        let mut not_fully_idle = false;
-        let mut step_count = 0;
-        let mut last_user_input_time = String::new();
-
-        if let Some(conn) = &db_conn {
-            if let Some(meta) = get_conversation_metadata(conn, &p.conversation_id) {
-                title = meta.title;
-                agent_name = if meta.agent_name.is_empty() {
-                    "self".to_string()
-                } else {
-                    meta.agent_name
-                };
-                not_fully_idle = meta.not_fully_idle;
-                step_count = meta.step_count;
-                last_user_input_time = meta.last_user_input_time;
-            }
-        }
-
-        // Live real-time check from kernel procfs & live transcript:
-        let mut is_asking_user = false;
-        let has_children = proc_monitor::has_child_processes(p.pid);
-        if let Some(live) = db_reader::get_live_transcript_status(&p.conversation_id, brain_dir) {
-            not_fully_idle = live.is_busy || has_children;
-            is_asking_user = live.is_asking_user;
-            if live.step_index > step_count {
-                step_count = live.step_index;
-            }
-        } else if has_children {
-            not_fully_idle = true;
-        }
-
-        if not_fully_idle {
+    for s in &active_sessions {
+        total_memory += s.stats.memory_rss_mb;
+        if s.not_fully_idle {
             busy_count += 1;
         }
-
-        if title.is_empty() {
-            if p.conversation_id.starts_with("cli-") {
-                title = "Interaktivní CLI (čeká na zadání dotazu)".to_string();
-                last_user_input_time = "Čeká na prompt".to_string();
-            } else {
-                title = format!("AGY sezení {}", p.project_name);
-            }
-        }
-
-        let token_usage = read_conversation_token_usage(&p.conversation_id, brain_dir);
-
-        active_sessions.push(ActiveSession {
-            pid: p.pid,
-            conversation_id: p.conversation_id,
-            workspace_path: p.workspace_path,
-            project_name: p.project_name,
-            title,
-            agent_name,
-            current_mode: settings.agent_mode.clone(),
-            current_effort: settings.effort.clone(),
-            not_fully_idle,
-            is_asking_user,
-            step_count,
-            last_user_input_time,
-            stats: p.stats,
-            token_usage,
-        });
     }
-
-    let recent = if let Some(conn) = &db_conn {
-        get_recent_conversations(conn, 15, brain_dir)
-    } else {
-        Vec::new()
-    };
 
     let available_models = get_all_available_models();
     let available_agents = get_all_available_agents();
@@ -219,6 +140,7 @@ fn collect_state(
         available_models,
         available_agents,
         real_quota: quota.clone(),
+        active_providers,
     }
 }
 
@@ -227,12 +149,19 @@ fn write_shared_memory_state(state: &AgyState, last_written: &mut String) {
         if *last_written == json_str {
             return;
         }
-        let shm_path = Path::new("/dev/shm/agy-state.json");
-        let tmp_path = Path::new("/dev/shm/agy-state.json.tmp");
-        if fs::write(tmp_path, json_str.as_bytes()).is_ok() {
-            let _ = fs::rename(tmp_path, shm_path);
-            *last_written = json_str;
+        // Write to new standard AgentiCom shared memory path
+        let shm_path_new = Path::new("/dev/shm/agenticom-state.json");
+        let tmp_path_new = Path::new("/dev/shm/agenticom-state.json.tmp");
+        if fs::write(tmp_path_new, json_str.as_bytes()).is_ok() {
+            let _ = fs::rename(tmp_path_new, shm_path_new);
         }
+        // Maintain backward compatibility for existing plasmoid/scripts
+        let shm_path_legacy = Path::new("/dev/shm/agy-state.json");
+        let tmp_path_legacy = Path::new("/dev/shm/agy-state.json.tmp");
+        if fs::write(tmp_path_legacy, json_str.as_bytes()).is_ok() {
+            let _ = fs::rename(tmp_path_legacy, shm_path_legacy);
+        }
+        *last_written = json_str;
     }
 }
 
@@ -252,13 +181,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command.unwrap_or(Commands::Run) {
         Commands::Dump => {
+            let config_path = AgentiComConfig::get_default_config_path();
+            let config = AgentiComConfig::load_or_default(&config_path);
+            let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
             let quota = agy_daemon::quota::fetch_quota_sync(&log_dir);
             let skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
             let st = collect_state(
-                &presence_dir,
-                &db_path,
+                &registry,
                 &settings_path,
-                &brain_dir,
                 &skills,
                 &quota,
             );
@@ -344,7 +274,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Run => {}
     }
 
-    println!("[agy-daemon] Initializing Antigravity KDE Plasma 6 Daemon...");
+    println!("[agenticom-daemon] Initializing AgentiCom: AI CLI Monitoring System Daemon...");
+
+    let config_path = AgentiComConfig::get_default_config_path();
+    let config = AgentiComConfig::load_or_default(&config_path);
+    let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
 
     let initial_quota = agy_daemon::quota::fetch_quota_sync(&log_dir);
     let quota_arc = Arc::new(Mutex::new(initial_quota.clone()));
@@ -353,10 +287,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_written_json = String::new();
 
     let initial_state = collect_state(
-        &presence_dir,
-        &db_path,
+        &registry,
         &settings_path,
-        &brain_dir,
         &cached_skills,
         &initial_quota,
     );
@@ -436,14 +368,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Main loop
     loop {
         tokio::select! {
-            _ = sleep(Duration::from_millis(1500)) => {
+            _ = sleep(Duration::from_millis(config.poll_interval_ms)) => {
                 tick_counter += 1;
                 let current_quota = quota_arc.lock().map(|q| q.clone()).unwrap_or_default();
                 let current_state = collect_state(
-                    &presence_dir,
-                    &db_path,
+                    &registry,
                     &settings_path,
-                    &brain_dir,
                     &cached_skills,
                     &current_quota,
                 );
@@ -468,10 +398,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let current_quota = quota_arc.lock().map(|q| q.clone()).unwrap_or_default();
                 let current_state = collect_state(
-                    &presence_dir,
-                    &db_path,
+                    &registry,
                     &settings_path,
-                    &brain_dir,
                     &cached_skills,
                     &current_quota,
                 );

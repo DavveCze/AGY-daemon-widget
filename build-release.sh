@@ -23,9 +23,10 @@ cargo build --release
 cd "$PROJECT_DIR"
 
 # Copy binary to bin/ and strip debug symbols
-cp "$PROJECT_DIR/daemon/target/release/agy-daemon" "$BIN_DIR/agy-daemon"
-strip --strip-all "$BIN_DIR/agy-daemon"
-echo "  -> Created stripped binary: $BIN_DIR/agy-daemon ($(ls -lh "$BIN_DIR/agy-daemon" | awk '{print $5}'))"
+cp "$PROJECT_DIR/daemon/target/release/agy-daemon" "$BIN_DIR/agenticom-daemon"
+strip --strip-all "$BIN_DIR/agenticom-daemon"
+ln -sf "$BIN_DIR/agenticom-daemon" "$BIN_DIR/agy-daemon"
+echo "  -> Created stripped binary: $BIN_DIR/agenticom-daemon ($(ls -lh "$BIN_DIR/agenticom-daemon" | awk '{print $5}'))"
 
 # 3. Assemble release staging directory
 echo "[2/4] Assembling release files..."
@@ -33,13 +34,14 @@ mkdir -p "$RELEASE_STAGING/bin"
 mkdir -p "$RELEASE_STAGING/plasmoid"
 mkdir -p "$RELEASE_STAGING/systemd"
 
+cp "$BIN_DIR/agenticom-daemon" "$RELEASE_STAGING/bin/agenticom-daemon"
 cp "$BIN_DIR/agy-daemon" "$RELEASE_STAGING/bin/agy-daemon"
 cp -r "$PROJECT_DIR/plasmoid/org.kde.plasma.antigravity" "$RELEASE_STAGING/plasmoid/"
-cp "$PROJECT_DIR/systemd/agy-daemon.service" "$RELEASE_STAGING/systemd/"
+cp "$PROJECT_DIR/systemd/agenticom-daemon.service" "$RELEASE_STAGING/systemd/"
 cp "$PROJECT_DIR/install.sh" "$RELEASE_STAGING/install.sh"
 cp "$PROJECT_DIR/README.md" "$RELEASE_STAGING/README.md"
 cp "$PROJECT_DIR/LICENSE" "$RELEASE_STAGING/LICENSE"
-chmod +x "$RELEASE_STAGING/install.sh" "$RELEASE_STAGING/bin/agy-daemon"
+chmod +x "$RELEASE_STAGING/install.sh" "$RELEASE_STAGING/bin/agenticom-daemon" "$RELEASE_STAGING/bin/agy-daemon"
 
 # 4. Create .plasmoid package (zip format for Plasma package installer)
 echo "[3/4] Creating standalone .plasmoid package..."

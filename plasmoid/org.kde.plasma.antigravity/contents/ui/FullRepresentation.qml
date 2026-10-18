@@ -32,6 +32,7 @@ Item {
     property var expandedPids: ({})
     property var expandedSkills: ({})
     property string selectedSkillCategory: "all"
+    property string selectedProviderFilter: "all"
 
     function isSessionExpanded(pid) {
         return !!expandedPids[pid];
@@ -470,42 +471,96 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                // Empty state
                 ColumnLayout {
-                    anchors.centerIn: parent
-                    visible: activeSessions.length === 0
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.Icon {
-                        source: "dialog-information"
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: 48
-                        Layout.preferredHeight: 48
-                        opacity: 0.5
-                    }
-
-                    Text {
-                        text: "Žádný agent ani CLI sezení právě neběží"
-                        font.pixelSize: 13
-                        color: Kirigami.Theme.disabledTextColor
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    PlasmaComponents3.Button {
-                        text: "Spustit nové AGY sezení"
-                        icon.name: "utilities-terminal"
-                        Layout.alignment: Qt.AlignHCenter
-                        onClicked: root.launchTerminal("")
-                    }
-                }
-
-                // Active sessions list
-                ListView {
                     anchors.fill: parent
-                    visible: activeSessions.length > 0
-                    clip: true
                     spacing: Kirigami.Units.smallSpacing
-                    model: activeSessions
+
+                    // Provider Filter Pills (All / AGY / Claude / Codex)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        visible: activeSessions.length > 0
+
+                        Repeater {
+                            model: [
+                                { id: "all", label: "Vše (" + activeSessions.length + ")" },
+                                { id: "antigravity", label: "AGY (" + activeSessions.filter(s => (s.provider || "antigravity") === "antigravity").length + ")" },
+                                { id: "claude", label: "Claude (" + activeSessions.filter(s => s.provider === "claude").length + ")" },
+                            ]
+                            delegate: Rectangle {
+                                id: pill
+                                required property var modelData
+                                readonly property bool isSelected: fullRoot.selectedProviderFilter === modelData.id
+
+                                Layout.preferredHeight: 22
+                                Layout.preferredWidth: pillText.contentWidth + 14
+                                radius: 11
+                                color: isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
+                                border.color: isSelected ? Kirigami.Theme.highlightColor : fullRoot.borderColor
+                                border.width: 1
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: fullRoot.selectedProviderFilter = pill.modelData.id
+                                }
+
+                                Text {
+                                    id: pillText
+                                    anchors.centerIn: parent
+                                    text: pill.modelData.label
+                                    font.pixelSize: 10
+                                    font.bold: pill.isSelected
+                                    color: pill.isSelected ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    // Empty state
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length === 0
+                        spacing: Kirigami.Units.largeSpacing
+
+                        Item { Layout.fillHeight: true }
+
+                        Kirigami.Icon {
+                            source: "dialog-information"
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 48
+                            opacity: 0.5
+                        }
+
+                        Text {
+                            text: fullRoot.selectedProviderFilter === "all" ? "Žádný agent ani CLI sezení právě neběží" : ("Žádné aktivní sezení pro providera " + fullRoot.selectedProviderFilter)
+                            font.pixelSize: 13
+                            color: Kirigami.Theme.disabledTextColor
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        PlasmaComponents3.Button {
+                            text: "Spustit nové CLI sezení"
+                            icon.name: "utilities-terminal"
+                            Layout.alignment: Qt.AlignHCenter
+                            onClicked: root.launchTerminal("")
+                        }
+
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // Active sessions list
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length > 0
+                        clip: true
+                        spacing: Kirigami.Units.smallSpacing
+                        model: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter)
 
                     delegate: Rectangle {
                         id: sessionDelegate
@@ -548,6 +603,22 @@ Item {
                                     color: Kirigami.Theme.textColor
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
+                                }
+
+                                Rectangle {
+                                    radius: 3
+                                    color: modelData.provider_badge_color || (modelData.provider === "claude" ? "#ea580c" : (modelData.provider === "codex" ? "#10b981" : "#3b82f6"))
+                                    Layout.preferredWidth: providerBadgeLabel.contentWidth + 8
+                                    Layout.preferredHeight: 18
+
+                                    Text {
+                                        id: providerBadgeLabel
+                                        anchors.centerIn: parent
+                                        text: modelData.provider === "claude" ? "Claude" : (modelData.provider === "codex" ? "Codex" : "AGY")
+                                        font.pixelSize: 9
+                                        font.bold: true
+                                        color: "#ffffff"
+                                    }
                                 }
 
                                 Rectangle {
@@ -812,6 +883,7 @@ Item {
                     }
                 }
             }
+        }
 
             // ==========================================
             // TAB 1: HISTORIE KONVERZACÍ
@@ -855,6 +927,23 @@ Item {
 
                                 RowLayout {
                                     spacing: Kirigami.Units.mediumSpacing
+
+                                    Rectangle {
+                                        radius: 2
+                                        color: modelData.provider === "claude" ? "#ea580c" : (modelData.provider === "codex" ? "#10b981" : "#3b82f6")
+                                        Layout.preferredWidth: histBadgeLabel.contentWidth + 6
+                                        Layout.preferredHeight: 14
+
+                                        Text {
+                                            id: histBadgeLabel
+                                            anchors.centerIn: parent
+                                            text: modelData.provider === "claude" ? "Claude" : (modelData.provider === "codex" ? "Codex" : "AGY")
+                                            font.pixelSize: 8
+                                            font.bold: true
+                                            color: "#ffffff"
+                                        }
+                                    }
+
                                     Text {
                                         text: "Kroky: " + modelData.step_count
                                         font.pixelSize: 10

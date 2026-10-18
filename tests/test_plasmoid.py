@@ -47,11 +47,17 @@ def test_kpackagetool():
     print("  ✓ Plasmoid successfully recognized by KDE Plasma 6 package manager")
 
 def test_shm_state():
-    print("[TEST] Verifying /dev/shm/agy-state.json...")
-    shm_path = "/dev/shm/agy-state.json"
+    print("[TEST] Verifying /dev/shm shared memory state...")
+    shm_path = "/dev/shm/agenticom-state.json"
     if not os.path.exists(shm_path):
-        print("  ! Notice: /dev/shm/agy-state.json not yet written by daemon (will test dump instead)")
-        dump_res = subprocess.run(["~/.local/bin/agy-daemon", "dump"], capture_output=True, text=True, shell=True)
+        shm_path = "/dev/shm/agy-state.json"
+
+    if not os.path.exists(shm_path):
+        print("  ! Notice: shared memory state not yet written by daemon (testing dump instead)")
+        dump_bin = os.path.expanduser("~/.local/bin/agenticom-daemon")
+        if not os.path.exists(dump_bin):
+            dump_bin = os.path.expanduser("~/.local/bin/agy-daemon")
+        dump_res = subprocess.run([dump_bin, "dump"], capture_output=True, text=True)
         data = json.loads(dump_res.stdout)
     else:
         with open(shm_path, "r", encoding="utf-8") as f:

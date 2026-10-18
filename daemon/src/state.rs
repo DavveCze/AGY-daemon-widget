@@ -19,6 +19,14 @@ pub struct TokenUsage {
     pub session_percentage: f32,
 }
 
+fn default_provider() -> String {
+    "antigravity".to_string()
+}
+
+fn default_provider_badge() -> String {
+    "#3b82f6".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveSession {
     pub pid: u32,
@@ -36,6 +44,10 @@ pub struct ActiveSession {
     pub last_user_input_time: String,
     pub stats: ProcessStats,
     pub token_usage: TokenUsage,
+    #[serde(default = "default_provider")]
+    pub provider: String,
+    #[serde(default = "default_provider_badge")]
+    pub provider_badge_color: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +60,8 @@ pub struct ConversationItem {
     pub workspace_uris: String,
     pub agent_name: String,
     pub token_usage: TokenUsage,
+    #[serde(default = "default_provider")]
+    pub provider: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,4 +137,8 @@ pub struct AgyState {
     pub available_models: Vec<ModelOption>,
     pub available_agents: Vec<AgentOption>,
     pub real_quota: crate::quota::RealQuotaData,
+    #[serde(default)]
+    pub active_providers: Vec<String>,
 }
+
+pub type AgentiComState = AgyState;

@@ -1,0 +1,13 @@
+[Unit]
+Description=AgentiCom: AI CLI Monitoring System Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/agenticom-daemon run
+Restart=always
+RestartSec=3
+Environment=RUST_BACKTRACE=1
+
+[Install]
+WantedBy=default.target

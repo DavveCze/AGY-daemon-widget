@@ -7,11 +7,11 @@
             }
         ],
         "Category": "Utilities",
-        "Description": "High-performance Antigravity CLI & Multi-Agent monitor and control widget for KDE Plasma 6",
+        "Description": "AgentiCom: High-performance Multi-Provider AI CLI Monitor (Antigravity, Claude Code, OpenAI Codex) for KDE Plasma 6",
         "Icon": "antigravity",
         "Id": "org.kde.plasma.antigravity",
         "License": "MIT",
-        "Name": "Antigravity Agent Monitor",
+        "Name": "AgentiCom: AI CLI Monitor",
         "ServiceTypes": [
             "Plasma/Applet"
         ],

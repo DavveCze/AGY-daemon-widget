@@ -1,4 +1,4 @@
-# Antigravity KDE Plasma 6 Agent Monitor & Widget
+# AgentiCom: AI CLI Monitoring System for KDE Plasma 6
 
 [![KDE Plasma 6](https://img.shields.io/badge/KDE-Plasma%206-31a8e0?style=for-the-badge&logo=kde&logoColor=white)](https://kde.org/plasma-desktop/)
 [![Qt 6](https://img.shields.io/badge/Qt-6.8%2B-41cd52?style=for-the-badge&logo=qt&logoColor=white)](https://www.qt.io/)
@@ -6,28 +6,28 @@
 [![Linux Native](https://img.shields.io/badge/Linux-Kernel%20inotify%20%26%20procfs-fbc02d?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-An ultra-responsive, zero-overhead KDE Plasma 6 plasmoid and Linux procfs daemon for monitoring and controlling **Google Antigravity CLI (`agy`)** sessions, AI agents, model configurations, quotas, and extension skills.
+An ultra-responsive, modular, zero-overhead KDE Plasma 6 plasmoid and Linux procfs daemon for monitoring and controlling AI CLI coding agents: **Google Antigravity CLI (`agy`)**, **Anthropic Claude Code (`claude`)**, and **OpenAI Codex CLI (`codex`)**.
 
 ---
 
 ## 📸 Highlights & Features
 
-- **⚡ Zero Idle Overhead:** Event-driven architecture powered by Linux kernel `inotify` and `/proc/locks`. Consumes **0.00% CPU** when idle.
-- **🚀 Sub-millisecond UI Latency:** Plasmoid reads state directly from Linux RAM tmpfs (`/dev/shm/agy-state.json`) with zero disk I/O.
+- **⚡ Zero Idle Overhead:** Event-driven architecture powered by Linux kernel `inotify` and `/proc` polling. Consumes **0.00% CPU** when idle.
+- **🔌 Multi-Provider Modular Architecture:** Pluggable provider system (`AgentProvider` trait) with selective module enablement (`~/.config/agenticom/config.json`).
+  - 🔵 **Google Antigravity Provider:** Native `agy` process tracking, Gemini 3.8 Flash, 5-hour quota reset tracking, and 45+ skill indexing.
+  - 🟠 **Anthropic Claude Code Provider:** Native `claude` CLI process detection, Sonnet 3.7 / Opus 4 token tracking, project transcripts, and user prompt alerts.
+  - 🟢 **OpenAI Codex Provider:** Dedicated provider scaffold for OpenAI Codex CLI sessions.
+- **🚀 Sub-millisecond UI Latency:** Plasmoid reads state directly from Linux RAM tmpfs (`/dev/shm/agenticom-state.json` with fallback to `agy-state.json`) with zero disk I/O.
 - **🎯 Live Agent Supervision:**
-  - Real-time CPU % and RSS memory tracking per agent.
-  - Smart status detection: reliably distinguishes active code generation from waiting for user confirmation (`waiting_for_input`).
-  - One-click Terminal Attach (`wezterm`, `kitty`, `alacritty`, `ghostty`, `konsole`).
+  - Real-time CPU % and RSS memory tracking per agent session.
+  - Smart status detection: reliably distinguishes active code generation from waiting for user confirmation (`waiting_for_input` / asking user).
+  - Categorized provider filter pills (`[Vše]` `[AGY]` `[Claude]`) in the session dashboard.
+  - One-click Terminal Attach (`konsole`, `wezterm`, `kitty`, `alacritty`, `ghostty`).
   - Instant process termination (`SIGTERM` / `SIGKILL`).
-- **📜 Conversation History:** Inspects session summaries and timestamps directly from SQLite WAL database.
+- **📜 Multi-Agent Conversation History:** Inspects session summaries and timestamps across all active providers.
 - **⚙️ Model & Session Switching:**
-  - Quick model selection: **Gemini 3.8 Flash**, **Claude Sonnet 4.6 (Thinking)**, **Claude Opus 4.6 (Thinking)**, **GPT-OSS 120B (Medium)**, and **Gemini 4 Argon**.
-  - Thinking level tuning and agent execution mode switcher (`auto`, `accept-edits`, `plan`).
-  - 5-hour quota reset tracking with smart notifications (only triggers when previous cycle reached >95% capacity).
-- **🧰 Skill & Plugin Explorer:**
-  - Automatically indexes 45+ builtin, user, and plugin skills.
-  - Categorized filter pills with instant search.
-  - One-click slash command copy (`/skill-name`), launch in terminal, or open `SKILL.md` in editor.
+  - Quick model selection: **Gemini 3.8 Flash (High/Medium/Low)**, **Claude Sonnet 4.6 (Thinking)**, **Claude Opus 4.6 (Thinking)**, and **GPT-OSS 120B (Medium)**.
+  - Automatic thinking level tuning for Claude models with visual orange highlight.
 
 ---
 
@@ -37,31 +37,39 @@ An ultra-responsive, zero-overhead KDE Plasma 6 plasmoid and Linux procfs daemon
 flowchart TD
     subgraph UI["KDE Plasma 6 Desktop"]
         Tray["System Tray / Panel Icon\n(Pulsing state dot & active badge)"]
-        Dashboard["Full Dashboard Window\n(QML, Kirigami, PlasmaComponents3)"]
+        Dashboard["Full Dashboard Window\n(QML, Kirigami, Provider Pills)"]
     end
 
     subgraph Memory["RAM (Linux tmpfs)"]
-        ShmState["/dev/shm/agy-state.json\n(Atomic state serialized in RAM)"]
+        ShmState["/dev/shm/agenticom-state.json\n(Atomic multi-provider state in RAM)"]
     end
 
-    subgraph Daemon["Native Daemon (agy-daemon in Rust)"]
-        InotifyWatcher["Linux inotify / epoll\n(File events on ~/.gemini)"]
-        ProcMonitor["Procfs Reader\n(/proc/locks, /proc/[pid]/stat)"]
-        SqliteReader["SQLite WAL Reader\n(Conversations & transcripts)"]
+    subgraph Daemon["AgentiCom Daemon (Rust)"]
+        Registry["Provider Registry\n(~/.config/agenticom/config.json)"]
+        P_AGY["AntigravityProvider (Gemini)"]
+        P_Claude["ClaudeProvider (Anthropic)"]
+        P_Codex["CodexProvider (OpenAI)"]
         DbusService["D-Bus Session Service\n(org.kde.plasma.antigravity)"]
     end
 
-    subgraph CLI["Antigravity CLI (agy)"]
-        AgentInstance["Active AI Agent Processes"]
+    subgraph CLI["CLI Agent Runtimes"]
+        A_AGY["Google Antigravity (agy)"]
+        A_Claude["Anthropic Claude Code (claude)"]
+        A_Codex["OpenAI Codex (codex)"]
     end
 
     Tray <--> Dashboard
-    Dashboard <-->|Read state every 1.5s| ShmState
+    Dashboard <-->|Read state every 1.0s| ShmState
     Dashboard <-->|D-Bus Methods: Kill, Launch, Config| DbusService
 
-    InotifyWatcher -->|Kernel event trigger| ProcMonitor
-    ProcMonitor -->|Poll metrics & locks| AgentInstance
-    SqliteReader -->|Read metadata| Daemon
+    Registry --> P_AGY
+    Registry --> P_Claude
+    Registry --> P_Codex
+
+    P_AGY -->|Procfs & DB| A_AGY
+    P_Claude -->|Procfs & Transcripts| A_Claude
+    P_Codex -->|Procfs| A_Codex
+
     Daemon -->|Atomic write| ShmState
 ```
 

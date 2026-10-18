@@ -137,6 +137,40 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
     results
 }
 
+pub fn procfs_page_size_kb() -> u64 {
+    match procfs_page_size() {
+        Ok(sz) => sz / 1024,
+        Err(_) => 4,
+    }
+}
+
+pub fn read_proc_memory_mb(pid: u32, page_size_kb: u64) -> f32 {
+    let statm_path = format!("/proc/{}/statm", pid);
+    if let Ok(statm) = fs::read_to_string(&statm_path) {
+        let parts: Vec<&str> = statm.split_whitespace().collect();
+        if parts.len() >= 2 {
+            if let Ok(resident_pages) = parts[1].parse::<u64>() {
+                let mb = (resident_pages * page_size_kb) as f32 / 1024.0;
+                return mb.round();
+            }
+        }
+    }
+    0.0
+}
+
+pub fn read_proc_cwd(pid: u32) -> (String, String) {
+    let cwd_path = format!("/proc/{}/cwd", pid);
+    let workspace_path = match fs::read_link(&cwd_path) {
+        Ok(p) => p.to_string_lossy().to_string(),
+        Err(_) => String::from("unknown"),
+    };
+    let project_name = Path::new(&workspace_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| workspace_path.clone());
+    (workspace_path, project_name)
+}
+
 fn procfs_page_size() -> Result<u64, ()> {
     unsafe {
         let sz = libc::sysconf(libc::_SC_PAGESIZE);

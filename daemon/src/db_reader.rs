@@ -154,6 +154,7 @@ pub fn get_recent_conversations(
             workspace_uris,
             agent_name,
             token_usage,
+            provider: "antigravity".to_string(),
         });
     }
 
