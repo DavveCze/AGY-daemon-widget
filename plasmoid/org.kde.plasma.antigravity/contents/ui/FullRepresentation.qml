@@ -444,15 +444,19 @@ Item {
             Layout.fillWidth: true
 
             PlasmaComponents3.TabButton {
+                icon.name: "utilities-terminal"
                 text: "Aktivní (" + activeSessions.length + ")"
             }
             PlasmaComponents3.TabButton {
+                icon.name: "view-history"
                 text: "Historie"
             }
             PlasmaComponents3.TabButton {
+                icon.name: "configure"
                 text: "Nastavení"
             }
             PlasmaComponents3.TabButton {
+                icon.name: "plugins"
                 text: "Skilly (" + skillsList.length + ")"
             }
         }
@@ -477,25 +481,26 @@ Item {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    spacing: 4
+                    spacing: 6
                     visible: activeSessions.length > 0
 
                     Repeater {
                         model: [
-                            { id: "all", label: "Vše (" + activeSessions.length + ")" },
-                            { id: "antigravity", label: "AGY (" + activeSessions.filter(s => (s.provider || "antigravity") === "antigravity").length + ")" },
-                            { id: "claude", label: "Claude (" + activeSessions.filter(s => s.provider === "claude").length + ")" },
+                            { id: "all", label: "Vše (" + activeSessions.length + ")", color: Kirigami.Theme.highlightColor },
+                            { id: "antigravity", label: "AGY (" + activeSessions.filter(s => (s.provider || "antigravity") === "antigravity").length + ")", color: "#3b82f6" },
+                            { id: "claude", label: "Claude (" + activeSessions.filter(s => s.provider === "claude").length + ")", color: "#ea580c" },
+                            { id: "codex", label: "Codex (" + activeSessions.filter(s => s.provider === "codex").length + ")", color: "#10b981" },
                         ]
                         delegate: Rectangle {
                             id: pill
                             required property var modelData
                             readonly property bool isSelected: fullRoot.selectedProviderFilter === modelData.id
 
-                            Layout.preferredHeight: 22
-                            Layout.preferredWidth: pillText.contentWidth + 14
-                            radius: 11
-                            color: isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
-                            border.color: isSelected ? Kirigami.Theme.highlightColor : fullRoot.borderColor
+                            Layout.preferredHeight: 30
+                            Layout.preferredWidth: pillText.contentWidth + 18
+                            radius: 15
+                            color: isSelected ? modelData.color : Kirigami.Theme.alternateBackgroundColor
+                            border.color: isSelected ? modelData.color : fullRoot.borderColor
                             border.width: 1
 
                             MouseArea {
@@ -508,9 +513,9 @@ Item {
                                 id: pillText
                                 anchors.centerIn: parent
                                 text: pill.modelData.label
-                                font.pixelSize: 10
+                                font.pixelSize: 11
                                 font.bold: pill.isSelected
-                                color: pill.isSelected ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                                color: pill.isSelected ? "#ffffff" : Kirigami.Theme.textColor
                             }
                         }
                     }
@@ -533,16 +538,20 @@ Item {
                     }
 
                     Text {
-                        text: fullRoot.selectedProviderFilter === "all" ? "Žádný agent ani CLI sezení právě neběží" : ("Žádné aktivní sezení pro providera " + fullRoot.selectedProviderFilter)
+                        text: fullRoot.selectedProviderFilter === "all"
+                            ? "Všechny úkoly jsou hotové. Žádné sezení neběží."
+                            : ("Žádné aktivní sezení pro " + (fullRoot.selectedProviderFilter === "codex" ? "OpenAI Codex" : (fullRoot.selectedProviderFilter === "claude" ? "Anthropic Claude" : "Google Antigravity")))
                         font.pixelSize: 13
                         color: Kirigami.Theme.disabledTextColor
                         Layout.alignment: Qt.AlignHCenter
                     }
 
                     PlasmaComponents3.Button {
-                        text: "Spustit nové CLI sezení"
+                        text: fullRoot.selectedProviderFilter === "codex" ? "Spustit nové Codex sezení" : "Spustit nové sezení"
                         icon.name: "utilities-terminal"
+                        highlighted: true
                         Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredHeight: 38
                         onClicked: root.launchTerminal("")
                     }
                 }
@@ -578,9 +587,23 @@ Item {
                         property string chosenMode: modelData.current_mode || "auto"
                         property string chosenEffort: modelData.current_effort || "medium"
 
+                        // Left vertical provider identity stripe
+                        Rectangle {
+                            id: providerStripe
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: 3
+                            radius: 1.5
+                            color: modelData.provider_badge_color || (modelData.provider === "claude" ? "#ea580c" : (modelData.provider === "codex" ? "#10b981" : "#3b82f6"))
+                        }
+
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: Kirigami.Units.smallSpacing
+                            anchors.leftMargin: Kirigami.Units.smallSpacing + 3
+                            anchors.topMargin: Kirigami.Units.smallSpacing
+                            anchors.rightMargin: Kirigami.Units.smallSpacing
+                            anchors.bottomMargin: Kirigami.Units.smallSpacing
                             spacing: 4
 
                             // Top row: Project name, PID, Status, Expand toggle
@@ -693,14 +716,20 @@ Item {
                                 PlasmaComponents3.Button {
                                     icon.name: "utilities-terminal"
                                     display: PlasmaComponents3.AbstractButton.IconOnly
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
                                     PlasmaComponents3.ToolTip.text: "Otevřít terminál a pokračovat v sezení"
                                     onClicked: root.resumeSession(modelData.conversation_id, modelData.workspace_path)
                                 }
 
+                                Item { Layout.preferredWidth: 8 }
+
                                 PlasmaComponents3.Button {
                                     icon.name: "process-stop"
                                     display: PlasmaComponents3.AbstractButton.IconOnly
-                                    PlasmaComponents3.ToolTip.text: "Zastavit sezení (Kill PID)"
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    PlasmaComponents3.ToolTip.text: "Zastavit sezení (Kill PID " + modelData.pid + ")"
                                     onClicked: root.killSession(modelData.pid)
                                 }
                             }
@@ -1647,23 +1676,27 @@ Item {
             }
         }
 
-        // --- BOTTOM ACTIONS FOOTER ---
+        // --- BOTTOM ACTIONS FOOTER (Single Primary CTA & Error Prevention) ---
         RowLayout {
             Layout.fillWidth: true
-            spacing: Kirigami.Units.smallSpacing
+            spacing: Kirigami.Units.mediumSpacing
 
             PlasmaComponents3.Button {
-                text: "Nové sezení"
-                icon.name: "list-add"
+                text: "Spustit nové sezení"
+                icon.name: "utilities-terminal"
+                highlighted: true
                 Layout.fillWidth: true
+                Layout.preferredHeight: 38
                 onClicked: root.launchTerminal("")
             }
 
             PlasmaComponents3.Button {
-                text: "Nouzově zastavit vše"
+                text: "Zastavit vše"
                 icon.name: "process-stop"
-                Layout.fillWidth: true
+                Layout.preferredHeight: 38
                 enabled: activeSessions.length > 0
+                visible: activeSessions.length > 0
+                PlasmaComponents3.ToolTip.text: "Nouzově ukončit všechna běžící AI CLI sezení"
                 onClicked: {
                     for (var i = 0; i < fullRoot.activeSessions.length; i++) {
                         root.killSession(fullRoot.activeSessions[i].pid);

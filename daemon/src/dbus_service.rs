@@ -29,6 +29,19 @@ impl AntigravityDbus {
     }
 
     async fn kill_session(&self, pid: u32) -> bool {
+        let sessions = {
+            let st = match self.state.lock() {
+                Ok(s) => s,
+                Err(p) => p.into_inner(),
+            };
+            st.active_sessions.clone()
+        };
+
+        if let Err(e) = crate::proc_monitor::verify_killable_ai_session(pid, &sessions) {
+            eprintln!("[agenticom-security] Blocked illegal kill_session for PID {}: {}", pid, e);
+            return false;
+        }
+
         let target_pid = Pid::from_raw(pid as i32);
         // First try graceful SIGTERM
         if kill(target_pid, Signal::SIGTERM).is_ok() {
@@ -57,27 +70,7 @@ impl AntigravityDbus {
     }
 
     async fn launch_session(&self, workspace: String) -> bool {
-        let ws = if workspace.is_empty() {
-            std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
-        } else {
-            workspace
-        };
-
-        // Try spawning a terminal with agy
-        let terminals = ["konsole", "kitty", "alacritty", "wezterm", "xterm"];
-        for term in terminals {
-            if std::process::Command::new(term)
-                .arg("--workdir")
-                .arg(&ws)
-                .arg("-e")
-                .arg("agy")
-                .spawn()
-                .is_ok()
-            {
-                return true;
-            }
-        }
-        false
+        crate::notifications::launch_terminal_session("", &workspace)
     }
 
     async fn set_notifications_enabled(&self, enabled: bool) -> bool {

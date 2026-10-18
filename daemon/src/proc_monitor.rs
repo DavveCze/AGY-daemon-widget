@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
-use crate::state::ProcessStats;
+use nix::unistd::getuid;
+use crate::state::{ActiveSession, ProcessStats};
 
 pub struct DetectedProcess {
     pub pid: u32,
@@ -206,3 +207,75 @@ pub fn has_child_processes(pid: u32) -> bool {
     }
     false
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum KillSecurityError {
+    InvalidPid,
+    SelfTargetingProhibited,
+    ProcessNotFound,
+    UnauthorizedUid { expected: u32, found: u32 },
+    UntrackedAiSession,
+}
+
+impl std::fmt::Display for KillSecurityError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KillSecurityError::InvalidPid => write!(f, "Invalid PID (< 2)"),
+            KillSecurityError::SelfTargetingProhibited => write!(f, "Cannot terminate the daemon process itself"),
+            KillSecurityError::ProcessNotFound => write!(f, "Process not found or status inaccessible"),
+            KillSecurityError::UnauthorizedUid { expected, found } => {
+                write!(f, "UID mismatch: expected {}, found {}", expected, found)
+            }
+            KillSecurityError::UntrackedAiSession => write!(f, "PID is not a recognized active AI CLI session"),
+        }
+    }
+}
+
+impl std::error::Error for KillSecurityError {}
+
+/// Verify that target PID is a valid, tracked AI CLI session owned by current user
+pub fn verify_killable_ai_session(pid: u32, active_sessions: &[ActiveSession]) -> Result<(), KillSecurityError> {
+    if pid <= 1 {
+        return Err(KillSecurityError::InvalidPid);
+    }
+    if pid == std::process::id() {
+        return Err(KillSecurityError::SelfTargetingProhibited);
+    }
+
+    let is_tracked = active_sessions.iter().any(|s| s.pid == pid);
+    if !is_tracked {
+        return Err(KillSecurityError::UntrackedAiSession);
+    }
+
+    let status_path = format!("/proc/{}/status", pid);
+    let status_content = fs::read_to_string(&status_path).map_err(|_| KillSecurityError::ProcessNotFound)?;
+
+    let current_uid = getuid().as_raw();
+    let mut uid_verified = false;
+
+    for line in status_content.lines() {
+        if line.starts_with("Uid:") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                let ruid = parts[1].parse::<u32>().unwrap_or(u32::MAX);
+                let euid = parts[2].parse::<u32>().unwrap_or(u32::MAX);
+                if ruid == current_uid && euid == current_uid {
+                    uid_verified = true;
+                } else {
+                    return Err(KillSecurityError::UnauthorizedUid {
+                        expected: current_uid,
+                        found: euid,
+                    });
+                }
+            }
+            break;
+        }
+    }
+
+    if !uid_verified {
+        return Err(KillSecurityError::ProcessNotFound);
+    }
+
+    Ok(())
+}
+

@@ -186,6 +186,27 @@ pub fn get_all_available_models() -> Vec<ModelOption> {
             thinking: true,
             available: true,
         },
+        ModelOption {
+            id: "openai-o3-mini".to_string(),
+            name: "OpenAI o3-mini (High Reasoning)".to_string(),
+            provider: "OpenAI".to_string(),
+            thinking: true,
+            available: true,
+        },
+        ModelOption {
+            id: "openai-o1".to_string(),
+            name: "OpenAI o1 (Deep Reasoning)".to_string(),
+            provider: "OpenAI".to_string(),
+            thinking: true,
+            available: true,
+        },
+        ModelOption {
+            id: "openai-gpt-4o".to_string(),
+            name: "OpenAI GPT-4o Omni".to_string(),
+            provider: "OpenAI".to_string(),
+            thinking: false,
+            available: true,
+        },
     ]
 }
 

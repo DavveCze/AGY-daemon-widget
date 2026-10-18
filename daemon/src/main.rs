@@ -144,23 +144,56 @@ fn collect_state(
     }
 }
 
+use std::fs::{OpenOptions, Permissions};
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+fn write_secure_shm_file(target_path: &Path, content: &str) -> Result<(), std::io::Error> {
+    let my_pid = std::process::id();
+    let tmp_path = target_path.with_file_name(format!(
+        ".{}.tmp.{}",
+        target_path.file_name().unwrap().to_string_lossy(),
+        my_pid
+    ));
+
+    // If pre-existing file or symlink exists at tmp_path, safely remove it
+    if let Ok(meta) = fs::symlink_metadata(&tmp_path) {
+        if meta.file_type().is_symlink() || (meta.permissions().mode() & 0o777 != 0o600) {
+            let _ = fs::remove_file(&tmp_path);
+        }
+    }
+
+    // Open file with mode 0600 (owner read/write only)
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&tmp_path)?;
+
+    file.set_permissions(Permissions::from_mode(0o600))?;
+    file.write_all(content.as_bytes())?;
+    file.flush()?;
+    drop(file);
+
+    // Atomic rename
+    fs::rename(&tmp_path, target_path)?;
+
+    // Ensure target path has 0600
+    let _ = fs::set_permissions(target_path, Permissions::from_mode(0o600));
+
+    Ok(())
+}
+
 fn write_shared_memory_state(state: &AgyState, last_written: &mut String) {
     if let Ok(json_str) = serde_json::to_string(state) {
         if *last_written == json_str {
             return;
         }
-        // Write to new standard AgentiCom shared memory path
         let shm_path_new = Path::new("/dev/shm/agenticom-state.json");
-        let tmp_path_new = Path::new("/dev/shm/agenticom-state.json.tmp");
-        if fs::write(tmp_path_new, json_str.as_bytes()).is_ok() {
-            let _ = fs::rename(tmp_path_new, shm_path_new);
-        }
-        // Maintain backward compatibility for existing plasmoid/scripts
         let shm_path_legacy = Path::new("/dev/shm/agy-state.json");
-        let tmp_path_legacy = Path::new("/dev/shm/agy-state.json.tmp");
-        if fs::write(tmp_path_legacy, json_str.as_bytes()).is_ok() {
-            let _ = fs::rename(tmp_path_legacy, shm_path_legacy);
-        }
+        let _ = write_secure_shm_file(shm_path_new, &json_str);
+        let _ = write_secure_shm_file(shm_path_legacy, &json_str);
         *last_written = json_str;
     }
 }
@@ -198,6 +231,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Kill { pid } => {
             use nix::sys::signal::{kill, Signal};
             use nix::unistd::Pid;
+
+            let config_path = AgentiComConfig::get_default_config_path();
+            let config = AgentiComConfig::load_or_default(&config_path);
+            let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
+            let active_sessions = registry.scan_all_sessions();
+
+            if let Err(e) = agy_daemon::proc_monitor::verify_killable_ai_session(pid, &active_sessions) {
+                eprintln!("[agenticom-security] Blocked illegal kill command for PID {}: {}", pid, e);
+                return Ok(());
+            }
+
             let target_pid = Pid::from_raw(pid as i32);
             if kill(target_pid, Signal::SIGTERM).is_ok() {
                 println!("Successfully signaled PID {}", pid);

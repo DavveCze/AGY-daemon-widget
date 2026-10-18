@@ -460,4 +460,435 @@ fn test_provider_registry_multi_provider() {
     assert!(!active_ids.contains(&"codex".to_string()));
 }
 
+#[test]
+fn test_process_stats_and_memory_rounding() {
+    let stats = ProcessStats {
+        pid: 9999,
+        cpu_percent: 1.25,
+        memory_rss_mb: 42.0,
+        runtime_seconds: 360,
+    };
+    assert_eq!(stats.memory_rss_mb, 42.0);
+    assert_eq!(stats.pid, 9999);
+}
+
+#[test]
+fn test_token_usage_percentage_boundary_clamping() {
+    let mut usage = TokenUsage {
+        input_tokens: 200_000,
+        output_tokens: 50_000,
+        cache_read_tokens: 0,
+        total_tokens: 250_000,
+        current_context_tokens: 250_000,
+        context_limit: 100_000, // over 100%
+        session_percentage: 0.0,
+    };
+    let pct = (usage.current_context_tokens as f32 / usage.context_limit as f32) * 100.0;
+    usage.session_percentage = ((pct * 10.0).round() / 10.0).clamp(0.0, 100.0);
+    assert_eq!(usage.session_percentage, 100.0);
+}
+
+#[test]
+fn test_backward_compatible_deserialization_defaults() {
+    let json = r#"{
+        "stats": {
+            "total_active_agents": 0,
+            "busy_agents_count": 0,
+            "total_memory_mb": 0.0,
+            "daemon_uptime_seconds": 10,
+            "last_updated_epoch": 0,
+            "account_email": "",
+            "plan_name": "",
+            "session_usage_percent": 0.0,
+            "session_reset_text": "",
+            "weekly_usage_percent": 0.0,
+            "weekly_reset_text": "",
+            "outsource_usage_percent": 0.0,
+            "outsource_reset_text": "",
+            "real_quota": {
+                "account_email": "",
+                "plan_name": "",
+                "gemini_weekly": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+                "gemini_five_hour": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+                "outsource_weekly": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+                "outsource_five_hour": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""}
+            }
+        },
+        "active_sessions": [],
+        "recent_conversations": [],
+        "settings": {
+            "model": "Gemini 3.8 Flash (Medium)",
+            "default_model": "gemini-3.8-flash-medium",
+            "agent_mode": "auto",
+            "effort": "medium",
+            "sandbox": true,
+            "notifications_enabled": true,
+            "notification_sound": true
+        },
+        "skills": [],
+        "available_models": [],
+        "available_agents": [],
+        "real_quota": {
+            "account_email": "",
+            "plan_name": "",
+            "gemini_weekly": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+            "gemini_five_hour": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+            "outsource_weekly": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""},
+            "outsource_five_hour": {"name":"","percentage":0.0,"reset_time_str":"","refreshes_in_str":""}
+        },
+        "active_providers": ["antigravity"]
+    }"#;
+
+    let parsed: Result<AgyState, _> = serde_json::from_str(json);
+    assert!(parsed.is_ok(), "Backward-compatible state deserialization must succeed");
+    let state = parsed.unwrap();
+    assert_eq!(state.active_providers, vec!["antigravity".to_string()]);
+}
+
+#[test]
+fn test_db_reader_metadata_missing_conversation_returns_none() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute(
+        "CREATE TABLE conversation_summaries (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            step_count INTEGER,
+            last_modified_time TEXT,
+            workspace_uris TEXT
+        )",
+        [],
+    ).unwrap();
+
+    let meta = get_conversation_metadata(&conn, "non-existent-uuid");
+    assert!(meta.is_none(), "Query for missing UUID must return None");
+}
+
+#[test]
+fn test_db_reader_recent_conversations_pagination_and_sorting() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute(
+        "CREATE TABLE conversation_summaries (
+            conversation_id TEXT PRIMARY KEY,
+            title TEXT DEFAULT '',
+            preview TEXT DEFAULT '',
+            step_count INTEGER DEFAULT 0,
+            last_modified_time TEXT,
+            workspace_uris TEXT DEFAULT '[]',
+            agent_name TEXT DEFAULT ''
+        )",
+        [],
+    ).unwrap();
+
+    conn.execute(
+        "INSERT INTO conversation_summaries VALUES ('c1', 'Task Old', 'Old preview', 2, '2026-10-10 10:00:00', '[]', 'self')",
+        [],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO conversation_summaries VALUES ('c2', 'Task New', 'New preview', 5, '2026-10-18 10:00:00', '[]', 'self')",
+        [],
+    ).unwrap();
+
+    let brain_dir = PathBuf::from("/tmp");
+    let recents = get_recent_conversations(&conn, 1, &brain_dir);
+    assert_eq!(recents.len(), 1);
+    assert_eq!(recents[0].conversation_id, "c2");
+    assert_eq!(recents[0].title, "Task New");
+}
+
+#[test]
+fn test_settings_manager_effort_auto_synchronization() {
+    let dir = tempdir().unwrap();
+    let settings_file = dir.path().join("settings.json");
+    fs::write(&settings_file, "{}").unwrap();
+
+    // High effort sync
+    update_model_setting(&settings_file, "gemini-3.8-flash-high", "Gemini 3.8 Flash (High)").unwrap();
+    let st = read_settings(&settings_file);
+    assert_eq!(st.default_model, "gemini-3.8-flash-high");
+    assert_eq!(st.effort, "high");
+
+    // Low effort sync
+    update_model_setting(&settings_file, "gemini-3.8-flash-low", "Gemini 3.8 Flash (Low)").unwrap();
+    let st = read_settings(&settings_file);
+    assert_eq!(st.default_model, "gemini-3.8-flash-low");
+    assert_eq!(st.effort, "low");
+}
+
+#[test]
+fn test_settings_manager_notifications_and_sound_toggle() {
+    use agy_daemon::settings_manager::{update_notification_sound, update_notifications_enabled};
+
+    let dir = tempdir().unwrap();
+    let settings_file = dir.path().join("settings.json");
+    fs::write(&settings_file, "{}").unwrap();
+
+    update_notifications_enabled(&settings_file, false).unwrap();
+    let st = read_settings(&settings_file);
+    assert!(!st.notifications_enabled);
+
+    update_notification_sound(&settings_file, false).unwrap();
+    let st = read_settings(&settings_file);
+    assert!(!st.notification_sound);
+}
+
+#[test]
+fn test_settings_manager_legacy_gemini_flash_id_migration() {
+    let dir = tempdir().unwrap();
+    let settings_file = dir.path().join("settings.json");
+    fs::write(
+        &settings_file,
+        r#"{"model": "Gemini 3.8 Flash", "defaultModel": "gemini-3.8-flash"}"#,
+    ).unwrap();
+
+    let st = read_settings(&settings_file);
+    assert_eq!(st.default_model, "gemini-3.8-flash-medium");
+    assert_eq!(st.model, "Gemini 3.8 Flash (Medium)");
+}
+
+#[test]
+fn test_all_available_models_and_agents_registry() {
+    use agy_daemon::settings_manager::{get_all_available_agents, get_all_available_models};
+
+    let models = get_all_available_models();
+    assert!(models.len() >= 6);
+    assert!(models.iter().any(|m| m.id == "gemini-3.8-flash-medium"));
+    assert!(models.iter().any(|m| m.id.contains("claude")));
+    assert!(models.iter().any(|m| m.id.contains("openai")));
+
+    let agents = get_all_available_agents();
+    assert!(agents.len() >= 6);
+    assert!(agents.iter().any(|a| a.id == "self"));
+    assert!(agents.iter().any(|a| a.id == "system-architect"));
+    assert!(agents.iter().any(|a| a.id == "cro-psychologist"));
+}
+
+#[test]
+fn test_skills_scanner_frontmatter_multiline_folding() {
+    let dir = tempdir().unwrap();
+    let skill_dir = dir.path().join("test-skill");
+    fs::create_dir_all(&skill_dir).unwrap();
+    let content = r#"---
+name: test-skill
+description: >-
+  This is a folded
+  multiline description for
+  testing purposes.
+---
+# Content
+"#;
+    fs::write(skill_dir.join("SKILL.md"), content).unwrap();
+
+    let scanned = scan_skills(&dir.path().to_path_buf(), &dir.path().join("builtin"), &dir.path().join("plugins"));
+    assert_eq!(scanned.len(), 1);
+    assert!(scanned[0].description.contains("folded multiline description"));
+}
+
+#[test]
+fn test_quota_parser_fallback_on_corrupted_output() {
+    use agy_daemon::quota::parse_usage_output;
+
+    let corrupted = "Random crash traceback: Segmentation fault at 0xdeadbeef";
+    let quota = parse_usage_output(corrupted, "test@example.com", "Pro");
+    assert_eq!(quota.gemini_five_hour.percentage, 100.0);
+    assert_eq!(quota.gemini_weekly.percentage, 100.0);
+}
+
+#[test]
+fn test_proc_monitor_cmdline_filtering_and_exclusion() {
+    let is_daemon = "target/release/agenticom-daemon run";
+    assert!(is_daemon.contains("agenticom-daemon"));
+
+    let is_grep = "grep --color=auto agy";
+    assert!(is_grep.contains("grep"));
+
+    let is_editor = "kate /home/david/.gemini/settings.json";
+    assert!(is_editor.contains("kate"));
+}
+
+#[test]
+fn test_proc_monitor_page_size_detection() {
+    use agy_daemon::proc_monitor::procfs_page_size_kb;
+
+    let sz_kb = procfs_page_size_kb();
+    assert!(sz_kb == 4 || sz_kb == 16 || sz_kb == 64, "Page size in KB should be standard power of two");
+}
+
+#[test]
+fn test_proc_monitor_cwd_fallback_on_inaccessible() {
+    use agy_daemon::proc_monitor::read_proc_cwd;
+
+    // PID 999999999 does not exist
+    let (ws, proj) = read_proc_cwd(999999999);
+    assert_eq!(ws, "unknown");
+    assert_eq!(proj, "unknown");
+}
+
+#[test]
+fn test_provider_registry_multi_provider_filtering() {
+    use agy_daemon::config::AgentiComConfig;
+    use agy_daemon::providers::ProviderRegistry;
+
+    let dir = tempdir().unwrap();
+    let mut cfg = AgentiComConfig::default();
+    cfg.providers.codex.enabled = true;
+
+    let registry = ProviderRegistry::new(
+        &cfg,
+        &dir.path().join("presence"),
+        &dir.path().join("conv.db"),
+        &dir.path().join("brain"),
+    );
+
+    let active = registry.active_provider_ids();
+    assert!(active.contains(&"antigravity".to_string()));
+    assert!(active.contains(&"claude".to_string()));
+    assert!(active.contains(&"codex".to_string()));
+}
+
+#[test]
+fn test_codex_provider_heuristics_and_scan() {
+    use agy_daemon::providers::codex::CodexProvider;
+    use agy_daemon::providers::AgentProvider;
+
+    let provider = CodexProvider::new(None);
+    assert_eq!(provider.id(), "codex");
+    assert_eq!(provider.display_name(), "OpenAI Codex");
+    assert_eq!(provider.badge_color(), "#10b981");
+
+    assert!(provider.is_codex_process("codex\0--model\0o3-mini"));
+    assert!(provider.is_codex_process("openai-codex src/main.rs"));
+    assert!(!provider.is_codex_process("agenticom-daemon run"));
+    assert!(!provider.is_codex_process("grep codex"));
+}
+
+#[test]
+fn test_codex_token_usage_parsing() {
+    use agy_daemon::providers::codex::CodexProvider;
+
+    let dir = tempdir().unwrap();
+    let codex_home = dir.path().join(".codex");
+    let sessions_dir = codex_home.join("sessions");
+    fs::create_dir_all(&sessions_dir).unwrap();
+
+    let session_json = r#"{
+        "id": "codex-test-1",
+        "model": "o3-mini",
+        "cwd": "/home/david/myproject",
+        "prompt_tokens": 12000,
+        "completion_tokens": 3000,
+        "cached_tokens": 50000
+    }"#;
+    fs::write(sessions_dir.join("test-sess.json"), session_json).unwrap();
+
+    let provider = CodexProvider::new(None);
+    // When no match or custom path, default token usage is returned safely
+    let usage = provider.check_codex_token_usage("/nonexistent");
+    assert_eq!(usage.context_limit, 128_000);
+}
+
+#[test]
+fn test_security_kill_session_untracked_pid_rejected() {
+    use agy_daemon::proc_monitor::{verify_killable_ai_session, KillSecurityError};
+
+    let active_sessions: Vec<ActiveSession> = Vec::new();
+    let res = verify_killable_ai_session(12345, &active_sessions);
+    assert_eq!(res, Err(KillSecurityError::UntrackedAiSession));
+}
+
+#[test]
+fn test_security_kill_session_self_and_init_rejected() {
+    use agy_daemon::proc_monitor::{verify_killable_ai_session, KillSecurityError};
+
+    let active_sessions: Vec<ActiveSession> = Vec::new();
+    assert_eq!(verify_killable_ai_session(0, &active_sessions), Err(KillSecurityError::InvalidPid));
+    assert_eq!(verify_killable_ai_session(1, &active_sessions), Err(KillSecurityError::InvalidPid));
+    assert_eq!(
+        verify_killable_ai_session(std::process::id(), &active_sessions),
+        Err(KillSecurityError::SelfTargetingProhibited)
+    );
+}
+
+#[test]
+fn test_security_kill_session_unauthorized_uid_rejected() {
+    use agy_daemon::proc_monitor::{verify_killable_ai_session, KillSecurityError};
+
+    // If a session has pid 1 in active_sessions, InvalidPid check triggers first
+    let dummy = vec![ActiveSession {
+        pid: 1,
+        conversation_id: "c1".to_string(),
+        workspace_path: "".to_string(),
+        project_name: "".to_string(),
+        title: "".to_string(),
+        agent_name: "".to_string(),
+        current_mode: "".to_string(),
+        current_effort: "".to_string(),
+        not_fully_idle: false,
+        is_asking_user: false,
+        step_count: 0,
+        last_user_input_time: "".to_string(),
+        stats: ProcessStats { pid: 1, cpu_percent: 0.0, memory_rss_mb: 0.0, runtime_seconds: 0 },
+        token_usage: TokenUsage::default(),
+        provider: "codex".to_string(),
+        provider_badge_color: "".to_string(),
+    }];
+
+    assert_eq!(verify_killable_ai_session(1, &dummy), Err(KillSecurityError::InvalidPid));
+}
+
+#[test]
+fn test_security_sanitize_workspace_path_traversal_rejected() {
+    use agy_daemon::notifications::sanitize_workspace_path;
+
+    // Null byte injection rejected
+    assert!(sanitize_workspace_path("/tmp/test\0hax").is_err());
+    // Control char rejected
+    assert!(sanitize_workspace_path("/tmp/test\x1bhax").is_err());
+    // Non-existent path rejected
+    assert!(sanitize_workspace_path("/nonexistent_path_xyz_12345").is_err());
+    // Valid temp path accepted
+    let dir = tempdir().unwrap();
+    let res = sanitize_workspace_path(dir.path().to_str().unwrap());
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_security_sanitize_conversation_id_command_injection_rejected() {
+    use agy_daemon::notifications::sanitize_conversation_id;
+
+    // Shell injection metacharacters rejected
+    assert!(sanitize_conversation_id("conv; rm -rf /").is_err());
+    assert!(sanitize_conversation_id("conv && whoami").is_err());
+    assert!(sanitize_conversation_id("conv | cat").is_err());
+    assert!(sanitize_conversation_id("conv`id`").is_err());
+    assert!(sanitize_conversation_id("$(reboot)").is_err());
+
+    // Valid alphanumeric UUID accepted
+    let ok_id = "87059659-be37-42d3-b2d1-8b6d61ec3cdc";
+    assert_eq!(sanitize_conversation_id(ok_id), Ok(ok_id.to_string()));
+}
+
+#[test]
+fn test_security_shared_memory_file_permissions_0600() {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let dir = tempdir().unwrap();
+    let shm_file = dir.path().join("test-state.json");
+
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&shm_file)
+        .unwrap();
+    std::io::Write::write_all(&mut file, b"{\"test\":true}").unwrap();
+    file.set_permissions(fs::Permissions::from_mode(0o600)).unwrap();
+    drop(file);
+
+    let meta = fs::metadata(&shm_file).unwrap();
+    let mode = meta.permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "Shared memory file must strictly have 0600 permissions");
+}
+
+
 

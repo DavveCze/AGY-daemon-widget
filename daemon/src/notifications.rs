@@ -58,34 +58,105 @@ pub fn send_desktop_notification(
     }
 }
 
-pub fn launch_terminal_session(conversation_id: &str, workspace: &str) {
-    let ws = if workspace.is_empty() {
-        std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
-    } else {
-        workspace.to_string()
+pub fn sanitize_workspace_path(input: &str) -> Result<std::path::PathBuf, &'static str> {
+    if input.is_empty() {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        return Ok(std::path::PathBuf::from(home));
+    }
+
+    if input.chars().any(|c| c == '\0' || c.is_control()) {
+        return Err("Path contains illegal null bytes or control characters");
+    }
+
+    let raw_path = std::path::Path::new(input);
+    let canonical = std::fs::canonicalize(raw_path).map_err(|_| "Directory does not exist or cannot be resolved")?;
+
+    if !canonical.is_dir() {
+        return Err("Path is not a directory");
+    }
+
+    Ok(canonical)
+}
+
+pub fn sanitize_conversation_id(input: &str) -> Result<String, &'static str> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+    if trimmed.len() > 128 {
+        return Err("Invalid conversation ID length (> 128)");
+    }
+
+    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err("Conversation ID contains invalid characters or shell metacharacters");
+    }
+
+    Ok(trimmed.to_string())
+}
+
+pub fn launch_terminal_session(conversation_id: &str, workspace: &str) -> bool {
+    let ws = match sanitize_workspace_path(workspace) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[agenticom-security] Invalid workspace path: {}", e);
+            return false;
+        }
     };
 
-    let agy_cmd = if conversation_id.is_empty() {
-        "agy".to_string()
-    } else {
-        format!("agy --resume {}", conversation_id)
+    let safe_cid = match sanitize_conversation_id(conversation_id) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[agenticom-security] Invalid conversation ID: {}", e);
+            return false;
+        }
     };
 
-    let terminals = ["konsole", "kitty", "alacritty", "wezterm", "xterm"];
-    for term in terminals {
-        if Command::new(term)
-            .arg("--workdir")
-            .arg(&ws)
-            .arg("-e")
-            .arg("bash")
-            .arg("-c")
-            .arg(&agy_cmd)
-            .spawn()
-            .is_ok()
-        {
-            return;
+    let ws_str = ws.to_string_lossy().to_string();
+
+    let spawn_terminal = |term: &str| -> bool {
+        let mut cmd = Command::new(term);
+        match term {
+            "konsole" => {
+                cmd.arg("--workdir").arg(&ws_str).arg("-e").arg("agy");
+                if !safe_cid.is_empty() {
+                    cmd.arg("--resume").arg(&safe_cid);
+                }
+            }
+            "kitty" => {
+                cmd.arg("--directory").arg(&ws_str).arg("agy");
+                if !safe_cid.is_empty() {
+                    cmd.arg("--resume").arg(&safe_cid);
+                }
+            }
+            "alacritty" => {
+                cmd.arg("--working-directory").arg(&ws_str).arg("-e").arg("agy");
+                if !safe_cid.is_empty() {
+                    cmd.arg("--resume").arg(&safe_cid);
+                }
+            }
+            "wezterm" => {
+                cmd.arg("start").arg("--cwd").arg(&ws_str).arg("--").arg("agy");
+                if !safe_cid.is_empty() {
+                    cmd.arg("--resume").arg(&safe_cid);
+                }
+            }
+            "xterm" => {
+                cmd.current_dir(&ws).arg("-e").arg("agy");
+                if !safe_cid.is_empty() {
+                    cmd.arg("--resume").arg(&safe_cid);
+                }
+            }
+            _ => return false,
+        }
+        cmd.spawn().is_ok()
+    };
+
+    for term in &["konsole", "kitty", "alacritty", "wezterm", "xterm"] {
+        if spawn_terminal(term) {
+            return true;
         }
     }
+    false
 }
 
 pub fn check_and_send_notifications(
