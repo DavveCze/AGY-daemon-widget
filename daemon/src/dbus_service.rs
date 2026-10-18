@@ -90,11 +90,12 @@ impl AntigravityDbus {
             st.settings.notification_sound
         };
 
+        let home_env = std::env::var("HOME").ok();
         crate::notifications::send_desktop_notification(
             "Antigravity Test",
             "Interaktivní notifikace a signalizace v KDE Plasma 6 fungují správně!",
             Some("test-session"),
-            Some("/home/david"),
+            home_env.as_deref(),
             sound,
         );
         true

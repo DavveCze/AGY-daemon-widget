@@ -16,7 +16,7 @@ PlasmoidItem {
             total_memory_mb: 0.0,
             daemon_uptime_seconds: 0,
             last_updated_epoch: 0,
-            account_email: "david.faul@seznam.cz",
+            account_email: "user@local",
             plan_name: "PRO",
             session_usage_percent: 33.0,
             session_reset_text: "resets in 1h 51m",
@@ -39,7 +39,7 @@ PlasmoidItem {
         available_agents: []
     })
 
-    property string daemonBinPath: "/home/david/.local/bin/agy-daemon"
+    property string daemonBinPath: "agenticom-daemon"
     property bool isDaemonActive: false
 
     Plasma5Support.DataSource {
@@ -130,23 +130,23 @@ PlasmoidItem {
     }
 
     function launchSkillInTerminal(command, workspacePath) {
-        var ws = workspacePath ? workspacePath : "/home/david";
+        var ws = workspacePath ? workspacePath : ".";
         var safeCmd = command ? command.replace(/"/g, "\\\"") : "";
         commandRunner.run("konsole --workdir \"" + ws + "\" -e bash -c 'agy --prompt \"" + safeCmd + "\"; exec bash' &");
     }
 
     function launchTerminal(workspacePath) {
-        var ws = workspacePath ? workspacePath : "/home/david";
+        var ws = workspacePath ? workspacePath : ".";
         commandRunner.run("konsole --workdir \"" + ws + "\" -e agy &");
     }
 
     function resumeSession(conversationId, workspacePath) {
-        var ws = workspacePath ? workspacePath : "/home/david";
+        var ws = workspacePath ? workspacePath : ".";
         commandRunner.run("konsole --workdir \"" + ws + "\" -e agy --conversation " + conversationId + " &");
     }
 
     function resumeWithCustomSettings(conversationId, workspacePath, agent, mode, effort) {
-        var ws = workspacePath ? workspacePath : "/home/david";
+        var ws = workspacePath ? workspacePath : ".";
         var cmd = "konsole --workdir \"" + ws + "\" -e agy";
         if (agent && agent.length > 0 && agent !== "self") {
             cmd += " --agent " + agent;

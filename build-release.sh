@@ -18,9 +18,9 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR" "$BIN_DIR" "$RELEASE_STAGING"
 
 # 2. Build Rust daemon
-echo "[1/4] Compiling Rust daemon in release mode..."
+echo "[1/4] Compiling Rust daemon in release mode (path-sanitized)..."
 cd "$PROJECT_DIR/daemon"
-cargo build --release
+RUSTFLAGS="--remap-path-prefix=$HOME=~ --remap-path-prefix=$PROJECT_DIR=." cargo build --release
 cd "$PROJECT_DIR"
 
 # Copy binary to bin/ and strip debug symbols

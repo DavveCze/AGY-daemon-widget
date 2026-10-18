@@ -12,7 +12,7 @@ pub struct CodexProvider {
 
 impl CodexProvider {
     pub fn new(custom_binary: Option<String>) -> Self {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/david".to_string());
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         let codex_home = PathBuf::from(home).join(".codex");
         Self {
             custom_binary,
@@ -202,7 +202,7 @@ impl AgentProvider for CodexProvider {
                     if let Ok(c) = fs::read_to_string(&path) {
                         if let Ok(json) = serde_json::from_str::<Value>(&c) {
                             let session_id = json.get("id").and_then(|v| v.as_str()).unwrap_or("codex-session").to_string();
-                            let project_dir = json.get("cwd").and_then(|v| v.as_str()).unwrap_or("/home/david").to_string();
+                            let project_dir = json.get("cwd").and_then(|v| v.as_str()).unwrap_or(".").to_string();
                             let title = json.get("title").and_then(|v| v.as_str()).unwrap_or("Codex Development Task").to_string();
                             let last_mod = json.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
 

@@ -63,7 +63,7 @@ fn get_base_paths() -> (
     PathBuf,
     PathBuf,
 ) {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/david".to_string());
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let base = PathBuf::from(&home).join(".gemini");
     let agy_cli = base.join("antigravity-cli");
 
@@ -301,11 +301,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::TestNotification => {
             let sound = read_settings(&settings_path).notification_sound;
+            let home_env = std::env::var("HOME").ok();
             agy_daemon::notifications::send_desktop_notification(
                 "Antigravity Test",
                 "Interaktivní notifikace a signalizace v KDE Plasma 6 fungují správně!",
                 Some("test-session"),
-                Some("/home/david"),
+                home_env.as_deref(),
                 sound,
             );
             println!("Test desktop notification triggered.");

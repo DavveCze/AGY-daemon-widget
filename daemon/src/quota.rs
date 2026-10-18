@@ -30,10 +30,13 @@ pub struct QuotaCache {
 
 impl QuotaCache {
     pub fn new() -> Self {
+        let fallback_email = std::env::var("USER")
+            .map(|u| format!("{}@local", u))
+            .unwrap_or_else(|_| "user@local".to_string());
         Self {
             last_fetched: None,
             data: RealQuotaData {
-                account_email: "davca.faul@gmail.com".to_string(),
+                account_email: fallback_email,
                 plan_name: "Google AI Pro".to_string(),
                 gemini_weekly: QuotaBucket {
                     name: "Weekly Limit Remaining".to_string(),
@@ -65,7 +68,9 @@ impl QuotaCache {
 }
 
 pub fn detect_account_from_logs(log_dir: &Path) -> (String, String) {
-    let mut email = "davca.faul@gmail.com".to_string();
+    let mut email = std::env::var("USER")
+        .map(|u| format!("{}@local", u))
+        .unwrap_or_else(|_| "user@local".to_string());
     let plan = "Google AI Pro".to_string();
 
     if let Ok(entries) = fs::read_dir(log_dir) {

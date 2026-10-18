@@ -12,7 +12,7 @@ pub struct ClaudeProvider {
 
 impl ClaudeProvider {
     pub fn new(custom_binary: Option<String>) -> Self {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/david".to_string());
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         let claude_home = PathBuf::from(home).join(".claude");
         Self {
             custom_binary,

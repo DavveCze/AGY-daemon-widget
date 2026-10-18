@@ -1,77 +1,77 @@
-# Uživatelská příručka k systému AgentiCom (Klientský manuál)
+# AgentiCom User Guide (Client Manual)
 
-Vítejte v uživatelské příručce pro **AgentiCom: AI CLI Monitoring System pro KDE Plasma 6**. Tato příručka slouží jako jednoduchý průvodce pro každodenní používání bez nutnosti hlubokých technických znalostí.
-
----
-
-## 1. O aplikaci a co všechno umí
-
-**AgentiCom** je elegantní panelový widget a monitorovací systém pro váš desktop KDE Plasma 6. Umožňuje vám mít neustálý přehled nad vašimi autonomními programátorskými agenty:
-* 🔵 **Google Antigravity (`agy`):** Gemini 3.8 Flash modely, rychlé úpravy kódu a plánování úloh.
-* 🟠 **Anthropic Claude Code (`claude`):** Claude Sonnet a Opus s rozšířeným myšlením (Extended Thinking).
-* 🟢 **OpenAI Codex (`codex`):** Modely o3-mini a o1 pro specializované kódování.
-
-### Hlavní přínosy:
-1. **Nulové zatížení počítače:** Když žádný agent nepracuje, monitor nezatěžuje procesor (0.00 % CPU) a šetří baterii notebooku.
-2. **Okamžitá signalizace:** Podle pulzující tečky na liště ihned poznáte, zda agent ještě píše kód (zelená), nebo čeká, až schválíte změny (modrá/oranžová).
-3. **Přepínání modelů jedním kliknutím:** Nemusíte psát příkazy do příkazové řádky – výchozí model i úroveň přemýšlení nastavíte přímo v přehledném okně.
+Welcome to the user guide for **AgentiCom: AI CLI Monitoring System for KDE Plasma 6**. This guide provides an easy-to-follow walkthrough for daily operation without requiring deep technical knowledge.
 
 ---
 
-## 2. Běžné používání krok za krokem
+## 1. Overview & Capabilities
 
-### Jak spustit nové sezení agenta
-1. Klikněte na ikonu **AgentiCom** v hlavním panelu (vedle hodin nebo mezi widgety).
-2. Otevře se hlavní okno.
-3. Ve spodní části klikněte na velké modré tlačítko **„Spustit nové sezení“**.
-4. Automaticky se otevře váš oblíbený terminál (např. Konsole) s připraveným agentem v domovské složce projektu.
+**AgentiCom** is an elegant desktop panel widget and background monitoring system designed for KDE Plasma 6. It gives you real-time visibility and control over your autonomous AI coding agents:
+* 🔵 **Google Antigravity (`agy`):** Gemini 3.8 Flash models, rapid code editing, and task planning.
+* 🟠 **Anthropic Claude Code (`claude`):** Claude Sonnet and Opus with Extended Thinking mode.
+* 🟢 **OpenAI Codex (`codex`):** o3-mini and o1 models tailored for specialized coding tasks.
 
-### Jak zkontrolovat, co agent právě dělá
-V záložce **„Aktivní sezení“** vidíte přehlednou kartu každého běžícího úkolu:
-* **Název projektu a složka:** Víte přesně, v jakém repozitáři agent pracuje.
-* **Stav:**
-  * `Pracuje` (zeleně): Agent generuje kód, analyzuje soubory nebo spouští testy.
-  * `Čeká` (šedě/modře): Úloha je pozastavena a agent čeká na váš další dotaz.
-* **Spotřeba kontextu (paměť na tokeny):** Barevný ukazatel vám ukáže, kolik procent z dostupného kontextového okna (např. 1 milion tokenů) je zaplněno.
-* **Paměť RAM:** Přehledně vidíte, kolik MB operační paměti proces agenta spotřebovává.
-
-### Jak se vrátit do rozpracovaného sezení
-Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpečně běží.
-1. Na kartě sezení klikněte na ikonu terminálu (`utilities-terminal`).
-2. Okno se okamžitě znovu otevře a naváže na přesně stejné místo.
-
-### Jak změnit výchozí AI model
-1. V horní části widgetu přepněte na záložku **„Nastavení“**.
-2. Zvolte požadovaný model:
-   * **Gemini 3.8 Flash (High / Medium / Low):** Vhodné pro rychlou každodenní práci a velké projekty.
-   * **Claude Sonnet 4.6 (Thinking):** Špičkový model pro komplexní uvažování.
-   * **OpenAI o3-mini / o1:** Výborné pro matematické a logické výzvy.
-3. Nastavení se okamžitě trvale uloží – každé nově spuštěné sezení už poběží na vámi zvoleném modelu.
+### Key Benefits:
+1. **Zero System Overhead:** When no agents are actively computing, the monitor uses 0.00% CPU and conserves your laptop battery.
+2. **Instant Visual Signaling:** A pulsating indicator dot in your panel immediately informs you whether an agent is generating code (pulsing green), awaiting approval (blue/orange), or completely idle.
+3. **One-Click Model & Effort Switching:** Change default models and reasoning effort directly in the UI without running command-line flags.
 
 ---
 
-## 3. Časté dotazy a řešení situací (FAQ)
+## 2. Step-by-Step Daily Usage
 
-### „Widget hlásí 'Všechny úkoly jsou hotové', ale já mám otevřený terminál.“
-* **Příčina:** Pokud jste v terminálu otevřeli běžný bash nebo program, který není AI CLI agentem (`agy`, `claude` ani `codex`), monitor jej úmyslně ignoruje, aby nezatěžoval systém zbytečnostmi.
-* **Řešení:** Zadejte v terminálu příkaz pro spuštění vašeho agenta (např. `agy`). Během vteřiny se karta automaticky objeví v seznamu.
+### How to Launch a New Agent Session
+1. Click the **AgentiCom** icon in your KDE panel (located next to the system tray or clock).
+2. The main popup representation opens.
+3. Click the primary action button at the bottom: **"Launch New Session"**.
+4. Your preferred terminal emulator (e.g. Konsole) automatically opens with the agent initialized in your project workspace.
 
-### „Agent se zacyklil a nereaguje. Jak ho bezpečně ukončit?“
-* Na příslušné kartě sezení klikněte na červenou ikonu se symbolem stopky (`process-stop`).
-* Systém proces bezpečně a šetrně ukončí (odešle signál `SIGTERM`).
-* **Bezpečnostní pojistka:** Monitor má vestavěnou ochranu jádra a nikdy vám nedovolí omylem ukončit systémový proces ani jiný otevřený program.
+### Monitoring Active Agent Work
+Under the **"Active Sessions"** tab, each running task is displayed with a clean card:
+* **Project Name & Folder:** Identifies the active repository and working directory.
+* **Status Badge:**
+  * `Working` (Green badge): The agent is analyzing files, generating edits, or running test suites.
+  * `Waiting` (Muted/Blue badge): The agent has paused and is waiting for your confirmation or prompt.
+* **Context Consumption (Token Usage):** A progress bar indicates how much of the context window (e.g. 1,000,000 tokens) is currently used.
+* **RAM Memory Usage:** Displays real-time RSS memory allocated by the agent process in megabytes.
 
-### „Mohou ostatní uživatelé na počítači číst mé prompty a kód?“
-* **Ne.** Systém AgentiCom ukládá sdílený stav do virtuální paměti s přísnými oprávněními `0600` (POSIX mode). K datům má přístup výhradně váš uživatelský účet, nikdo jiný.
+### Resuming an Existing Session
+If you accidentally close a terminal window, your agent continues running safely in the background.
+1. Click the terminal icon (`utilities-terminal`) on the session card.
+2. The terminal immediately reopens and attaches to the active task.
+
+### Changing the Default AI Model & Reasoning Effort
+1. Switch to the **"Settings"** tab at the top of the widget.
+2. Select your desired model:
+   * **Gemini 3.8 Flash (High / Medium / Low):** Ideal for fast daily programming and large context windows.
+   * **Claude Sonnet 4.6 (Thinking):** Best suited for deep reasoning and multi-step refactoring.
+   * **OpenAI o3-mini / o1:** Excels at algorithmic and mathematical problems.
+3. Configuration is immediately persisted—all subsequent sessions will use your selected model.
 
 ---
 
-## 4. Servis, podpora a záruka
+## 3. Frequently Asked Questions (FAQ)
 
-* **Automatický start:** Služba `agenticom-daemon` se automaticky spouští při startu vašeho uživatelského sezení přes `systemd --user`. Nemusíte se o nic starat.
-* **Aktualizace:** Při vydání nové verze stačí stáhnout balíček a spustit `./install.sh`. Veškerá vaše nastavení a historie zůstanou zachovány.
-* **Technická podpora:** Pokud narazíte na nečekané chování, můžete provést kontrolní diagnostický výpis zadáním příkazu do terminálu:
+### "The widget shows 'All tasks finished', but I have an open terminal."
+* **Cause:** If your terminal contains a standard shell session (like bash or zsh) or an unrelated program, AgentiCom intentionally ignores it to avoid clutter and save system resources.
+* **Resolution:** Run your AI CLI agent (e.g. `agy`, `claude`, or `codex`). Within one second, the session card will automatically appear in the active list.
+
+### "An agent is stuck or unresponsive. How do I safely terminate it?"
+* Click the red stop button (`process-stop`) on the session card.
+* The daemon safely sends a `SIGTERM` signal to stop the process gracefully.
+* **Kernel Security Invariant:** AgentiCom has kernel UID verification and process tracking. It is physically impossible to terminate system processes (like PID 1) or software belonging to other users.
+
+### "Can other users on this computer see my prompts or code?"
+* **No.** AgentiCom exchanges data through shared memory (`/dev/shm/agenticom-state.json`) with strict POSIX mode `0600` (readable and writable only by your user account).
+
+---
+
+## 4. Maintenance & Support
+
+* **Automatic Startup:** The background service `agenticom-daemon` runs automatically via `systemd --user`. No manual start is required.
+* **Updating:** To update to a newer release, download the package and run `./install.sh`. Your settings and session history are fully preserved.
+* **Diagnostics & Health Check:** If you need to verify system status or submit a support ticket, run:
   ```bash
   agenticom-daemon dump
   ```
-  Tento výpis obsahuje kompletní diagnostiku stavu démona pro snadné vyřešení podpory.
+  This command outputs a complete JSON snapshot of daemon health, active providers, and memory states.

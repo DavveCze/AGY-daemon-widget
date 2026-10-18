@@ -31,7 +31,7 @@ fn test_state_serialization_roundtrip() {
         active_sessions: vec![ActiveSession {
             pid: 1234,
             conversation_id: "conv-abc-123".to_string(),
-            workspace_path: "/home/david/project".to_string(),
+            workspace_path: "/home/user/project".to_string(),
             project_name: "project".to_string(),
             title: "Test Task".to_string(),
             agent_name: "self".to_string(),
@@ -65,7 +65,7 @@ fn test_state_serialization_roundtrip() {
             preview: "preview text".to_string(),
             step_count: 15,
             last_modified_time: "2026-10-17 12:00:00".to_string(),
-            workspace_uris: "[\"file:///home/david/project\"]".to_string(),
+            workspace_uris: "[\"file:///home/user/project\"]".to_string(),
             agent_name: "self".to_string(),
             token_usage: TokenUsage::default(),
             provider: "antigravity".to_string(),
@@ -158,7 +158,7 @@ fn test_db_reader_with_sqlite_memory() {
             "Preview of testing kernel monitor",
             42,
             "2026-10-17 12:30:00",
-            "[\"file:///home/david/Projekty/AGY_Widget\"]",
+            "[\"file:///workspace/AgentiCom\"]",
             "cro-psychologist",
             1,
             "2026-10-17 12:29:50",
@@ -176,7 +176,7 @@ fn test_db_reader_with_sqlite_memory() {
             "Finished preview",
             100,
             "2026-10-17 10:00:00",
-            "[\"file:///home/david/dev-library\"]",
+            "[\"file:///workspace/dev-library\"]",
             "self",
             0,
             "2026-10-17 09:59:00",
@@ -280,8 +280,8 @@ Quota:
   Claude and GPT models  Five Hour Limit Remaining  100%  2026-10-17 19:26 CEST
 "#;
 
-    let quota = parse_usage_output(sample_output, "davca.faul@gmail.com", "Google AI Pro");
-    assert_eq!(quota.account_email, "davca.faul@gmail.com");
+    let quota = parse_usage_output(sample_output, "test.user@example.com", "Google AI Pro");
+    assert_eq!(quota.account_email, "test.user@example.com");
     assert_eq!(quota.plan_name, "Google AI Pro");
     assert_eq!(quota.gemini_weekly.percentage, 96.0);
     assert_eq!(quota.gemini_five_hour.percentage, 87.0);
@@ -701,7 +701,7 @@ fn test_proc_monitor_cmdline_filtering_and_exclusion() {
     let is_grep = "grep --color=auto agy";
     assert!(is_grep.contains("grep"));
 
-    let is_editor = "kate /home/david/.gemini/settings.json";
+    let is_editor = "kate /home/user/.gemini/settings.json";
     assert!(is_editor.contains("kate"));
 }
 
@@ -773,7 +773,7 @@ fn test_codex_token_usage_parsing() {
     let session_json = r#"{
         "id": "codex-test-1",
         "model": "o3-mini",
-        "cwd": "/home/david/myproject",
+        "cwd": "/workspace/myproject",
         "prompt_tokens": 12000,
         "completion_tokens": 3000,
         "cached_tokens": 50000

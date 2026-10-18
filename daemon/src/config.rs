@@ -102,7 +102,7 @@ impl Default for AgentiComConfig {
 
 impl AgentiComConfig {
     pub fn get_default_config_path() -> PathBuf {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/david".to_string());
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(home).join(".config").join("agenticom").join("config.json")
     }
 

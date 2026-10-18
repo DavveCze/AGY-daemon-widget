@@ -178,7 +178,7 @@ Item {
                     }
 
                     Text {
-                        text: fullRoot.realQuota?.account_email || stateData?.stats?.account_email || "davca.faul@gmail.com"
+                        text: fullRoot.realQuota?.account_email || stateData?.stats?.account_email || i18n("Uživatel")
                         font.pixelSize: 11
                         font.bold: true
                         color: Kirigami.Theme.textColor

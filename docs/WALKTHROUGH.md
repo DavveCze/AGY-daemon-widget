@@ -69,7 +69,7 @@ flowchart TD
 
 ## 2. Multi-Provider Modular Engine
 
-The core daemon decouples agent monitoring via the `AgentProvider` trait defined in [`daemon/src/providers/mod.rs`](file:///home/david/Projekty/AGY_Widget/daemon/src/providers/mod.rs):
+The core daemon decouples agent monitoring via the `AgentProvider` trait defined in [`daemon/src/providers/mod.rs`](../daemon/src/providers/mod.rs):
 
 ```rust
 pub trait AgentProvider: Send + Sync {
@@ -107,7 +107,7 @@ pub trait AgentProvider: Send + Sync {
 AgentiCom implements defense-in-depth security measures to protect the host system:
 
 ### 3.1 Kernel UID & Whitelist Validation for Process Termination
-In [`daemon/src/proc_monitor.rs`](file:///home/david/Projekty/AGY_Widget/daemon/src/proc_monitor.rs#L236-L281), the `verify_killable_ai_session` function enforces strict kernel security invariants:
+In [`daemon/src/proc_monitor.rs`](../daemon/src/proc_monitor.rs), the `verify_killable_ai_session` function enforces strict kernel security invariants:
 1. **System & Self Protection:** PIDs $\le 1$ and the daemon's own PID cannot be signaled under any circumstances.
 2. **Active Whitelist Enforcement:** Only processes currently registered as valid AI sessions (`active_sessions`) can be targeted.
 3. **Kernel UID Matching:** Reads `/proc/{pid}/status` and checks that the real UID (`ruid`) and effective UID (`euid`) strictly match `nix::unistd::getuid()`. This prevents any user from terminating processes belonging to other users or system services.
@@ -119,7 +119,7 @@ In [`daemon/src/proc_monitor.rs`](file:///home/david/Projekty/AGY_Widget/daemon/
 * Atomic `rename` ensures that concurrent readers in Plasma never observe a partially written JSON file.
 
 ### 3.3 Shell Injection Immunity
-* Terminal launching in [`daemon/src/notifications.rs`](file:///home/david/Projekty/AGY_Widget/daemon/src/notifications.rs) completely avoids `bash -c`.
+* Terminal launching in [`daemon/src/notifications.rs`](../daemon/src/notifications.rs) completely avoids `bash -c`.
 * Terminal binaries (`konsole`, `kitty`, `alacritty`, `wezterm`, `xterm`) are invoked directly via `std::process::Command` with argument vectors.
 * Input paths are sanitized with `fs::canonicalize` and null bytes/control characters are strictly rejected.
 * Conversation IDs are validated against an alphanumeric and UUID whitelist (`[a-zA-Z0-9_\-\.]`).
@@ -174,7 +174,7 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 ## 7. Comprehensive Verification & Testing Suite (35 Tests)
 
-The test suite in [`daemon/tests/unit_and_integration_tests.rs`](file:///home/david/Projekty/AGY_Widget/daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
+The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
 
 ```
 running 35 tests
