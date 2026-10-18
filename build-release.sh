@@ -5,11 +5,12 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="1.0.0"
 DIST_DIR="$PROJECT_DIR/dist"
 BIN_DIR="$PROJECT_DIR/bin"
-PKG_NAME="antigravity-plasma6-widget-v${VERSION}-linux-x86_64"
+PKG_NAME="agenticom-plasma6-widget-v${VERSION}-linux-x86_64"
+LEGACY_PKG_NAME="antigravity-plasma6-widget-v${VERSION}-linux-x86_64"
 RELEASE_STAGING="$DIST_DIR/$PKG_NAME"
 
 echo "========================================================="
-echo "   Building Antigravity Plasma 6 Release Package (v$VERSION) "
+echo "   Building AgentiCom Plasma 6 Release Package (v$VERSION) "
 echo "========================================================="
 
 # 1. Clean and prepare directories
@@ -60,9 +61,11 @@ echo "  -> Generated: $DIST_DIR/org.kde.plasma.antigravity.plasmoid"
 echo "[4/4] Creating distribution archive..."
 cd "$DIST_DIR"
 tar -czf "${PKG_NAME}.tar.gz" "$PKG_NAME"
+cp "${PKG_NAME}.tar.gz" "${LEGACY_PKG_NAME}.tar.gz"
 
 # Generate SHA256 checksums
 sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+sha256sum "${LEGACY_PKG_NAME}.tar.gz" > "${LEGACY_PKG_NAME}.tar.gz.sha256"
 sha256sum "org.kde.plasma.antigravity.plasmoid" > "org.kde.plasma.antigravity.plasmoid.sha256"
 
 echo ""
