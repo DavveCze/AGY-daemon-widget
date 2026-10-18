@@ -28,12 +28,12 @@ Item {
         PlasmaComponents3.ToolTip.visible: containsMouse
         PlasmaComponents3.ToolTip.text: {
             if (!root.isDaemonActive) {
-                return "Antigravity Monitor\nDaemon starting...";
+                return "AgentiCom Monitor\nDaemon starting...";
             }
             if (compactRoot.activeCount === 0) {
-                return "Antigravity Monitor\nNo active CLI sessions\nModel: " + (root.agyState?.settings?.model ?? "Default");
+                return "AgentiCom Monitor\nNo active CLI sessions\nModel: " + (root.agyState?.settings?.model ?? "Default");
             }
-            return "Antigravity Monitor\nActive sessions: " + compactRoot.activeCount + " (" + compactRoot.busyCount + " working)\nRAM: " + (root.agyState?.stats?.total_memory_mb ?? 0) + " MB\nModel: " + (root.agyState?.settings?.model ?? "Default");
+            return "AgentiCom Monitor\nActive sessions: " + compactRoot.activeCount + " (" + compactRoot.busyCount + " working)\nRAM: " + (root.agyState?.stats?.total_memory_mb ?? 0) + " MB\nModel: " + (root.agyState?.settings?.model ?? "Default");
         }
     }
 

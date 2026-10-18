@@ -45,18 +45,35 @@ pub fn scan_agy_processes(presence_dir: &Path) -> Vec<DetectedProcess> {
             Err(_) => continue,
         };
 
-        if !cmdline.contains("agy") || cmdline.contains("agy-daemon") || cmdline.contains("/usage") || cmdline.contains("grep") {
+        if !cmdline.contains("agy")
+            || cmdline.contains("agy-daemon")
+            || cmdline.contains("agenticom-daemon")
+            || cmdline.contains("/usage")
+            || cmdline.contains("grep")
+        {
             continue;
         }
 
         // Check exe to verify it is the agy CLI binary
         let exe_path = format!("/proc/{}/exe", pid);
-        let is_agy_binary = if let Ok(target) = fs::read_link(&exe_path) {
-            let target_str = target.to_string_lossy();
-            target_str.ends_with("/agy") || target_str == "agy"
-        } else {
-            cmdline.starts_with("agy\0") || cmdline.starts_with("agy ") || cmdline.contains("/bin/agy")
-        };
+        let target_str = fs::read_link(&exe_path)
+            .map(|t| t.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        if target_str.contains("agenticom-daemon") || target_str.contains("agy-daemon") {
+            continue;
+        }
+
+        let is_agy_binary = target_str.ends_with("/agy")
+            || target_str == "agy"
+            || target_str.contains("/agy.")
+            || target_str.contains("/agy ")
+            || target_str.contains("/agy (deleted)")
+            || target_str.contains("/.local/bin/agy")
+            || cmdline.starts_with("agy\0")
+            || cmdline.starts_with("agy ")
+            || cmdline == "agy"
+            || cmdline.contains("/bin/agy");
 
         if !is_agy_binary {
             continue;

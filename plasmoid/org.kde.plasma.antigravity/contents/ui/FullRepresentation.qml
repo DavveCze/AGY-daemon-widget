@@ -120,7 +120,7 @@ Item {
                     RowLayout {
                         spacing: Kirigami.Units.smallSpacing
                         Text {
-                            text: "Antigravity CLI Monitor"
+                            text: "AgentiCom: AI CLI Monitor"
                             font.bold: true
                             font.pixelSize: 14
                             color: Kirigami.Theme.textColor
@@ -471,96 +471,93 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: Kirigami.Units.smallSpacing
+                // Provider Filter Pills (All / AGY / Claude / Codex)
+                RowLayout {
+                    id: filterPillsRow
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    spacing: 4
+                    visible: activeSessions.length > 0
 
-                    // Provider Filter Pills (All / AGY / Claude / Codex)
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-                        visible: activeSessions.length > 0
+                    Repeater {
+                        model: [
+                            { id: "all", label: "Vše (" + activeSessions.length + ")" },
+                            { id: "antigravity", label: "AGY (" + activeSessions.filter(s => (s.provider || "antigravity") === "antigravity").length + ")" },
+                            { id: "claude", label: "Claude (" + activeSessions.filter(s => s.provider === "claude").length + ")" },
+                        ]
+                        delegate: Rectangle {
+                            id: pill
+                            required property var modelData
+                            readonly property bool isSelected: fullRoot.selectedProviderFilter === modelData.id
 
-                        Repeater {
-                            model: [
-                                { id: "all", label: "Vše (" + activeSessions.length + ")" },
-                                { id: "antigravity", label: "AGY (" + activeSessions.filter(s => (s.provider || "antigravity") === "antigravity").length + ")" },
-                                { id: "claude", label: "Claude (" + activeSessions.filter(s => s.provider === "claude").length + ")" },
-                            ]
-                            delegate: Rectangle {
-                                id: pill
-                                required property var modelData
-                                readonly property bool isSelected: fullRoot.selectedProviderFilter === modelData.id
+                            Layout.preferredHeight: 22
+                            Layout.preferredWidth: pillText.contentWidth + 14
+                            radius: 11
+                            color: isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
+                            border.color: isSelected ? Kirigami.Theme.highlightColor : fullRoot.borderColor
+                            border.width: 1
 
-                                Layout.preferredHeight: 22
-                                Layout.preferredWidth: pillText.contentWidth + 14
-                                radius: 11
-                                color: isSelected ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
-                                border.color: isSelected ? Kirigami.Theme.highlightColor : fullRoot.borderColor
-                                border.width: 1
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: fullRoot.selectedProviderFilter = pill.modelData.id
+                            }
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: fullRoot.selectedProviderFilter = pill.modelData.id
-                                }
-
-                                Text {
-                                    id: pillText
-                                    anchors.centerIn: parent
-                                    text: pill.modelData.label
-                                    font.pixelSize: 10
-                                    font.bold: pill.isSelected
-                                    color: pill.isSelected ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                                }
+                            Text {
+                                id: pillText
+                                anchors.centerIn: parent
+                                text: pill.modelData.label
+                                font.pixelSize: 10
+                                font.bold: pill.isSelected
+                                color: pill.isSelected ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                             }
                         }
-
-                        Item { Layout.fillWidth: true }
                     }
 
-                    // Empty state
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length === 0
-                        spacing: Kirigami.Units.largeSpacing
+                    Item { Layout.fillWidth: true }
+                }
 
-                        Item { Layout.fillHeight: true }
+                // Empty state - centered in parent
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length === 0
+                    spacing: Kirigami.Units.largeSpacing
 
-                        Kirigami.Icon {
-                            source: "dialog-information"
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: 48
-                            Layout.preferredHeight: 48
-                            opacity: 0.5
-                        }
-
-                        Text {
-                            text: fullRoot.selectedProviderFilter === "all" ? "Žádný agent ani CLI sezení právě neběží" : ("Žádné aktivní sezení pro providera " + fullRoot.selectedProviderFilter)
-                            font.pixelSize: 13
-                            color: Kirigami.Theme.disabledTextColor
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-
-                        PlasmaComponents3.Button {
-                            text: "Spustit nové CLI sezení"
-                            icon.name: "utilities-terminal"
-                            Layout.alignment: Qt.AlignHCenter
-                            onClicked: root.launchTerminal("")
-                        }
-
-                        Item { Layout.fillHeight: true }
+                    Kirigami.Icon {
+                        source: "dialog-information"
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 48
+                        Layout.preferredHeight: 48
+                        opacity: 0.5
                     }
 
-                    // Active sessions list
-                    ListView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length > 0
-                        clip: true
-                        spacing: Kirigami.Units.smallSpacing
-                        model: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter)
+                    Text {
+                        text: fullRoot.selectedProviderFilter === "all" ? "Žádný agent ani CLI sezení právě neběží" : ("Žádné aktivní sezení pro providera " + fullRoot.selectedProviderFilter)
+                        font.pixelSize: 13
+                        color: Kirigami.Theme.disabledTextColor
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    PlasmaComponents3.Button {
+                        text: "Spustit nové CLI sezení"
+                        icon.name: "utilities-terminal"
+                        Layout.alignment: Qt.AlignHCenter
+                        onClicked: root.launchTerminal("")
+                    }
+                }
+
+                // Active sessions list
+                ListView {
+                    anchors.top: filterPillsRow.visible ? filterPillsRow.bottom : parent.top
+                    anchors.topMargin: filterPillsRow.visible ? Kirigami.Units.smallSpacing : 0
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length > 0
+                    clip: true
+                    spacing: Kirigami.Units.smallSpacing
+                    model: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter)
 
                     delegate: Rectangle {
                         id: sessionDelegate
@@ -883,7 +880,6 @@ Item {
                     }
                 }
             }
-        }
 
             // ==========================================
             // TAB 1: HISTORIE KONVERZACÍ
