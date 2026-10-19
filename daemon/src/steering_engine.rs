@@ -163,12 +163,13 @@ pub fn resume_session_with_quick_prompt(
     conversation_id: &str,
     workspace: &str,
     prompt: &str,
+    provider: Option<&str>,
 ) -> Result<bool, &'static str> {
     let options = QuickPromptOptions {
         workspace_path: workspace.to_string(),
         prompt: prompt.to_string(),
         conversation_id: Some(conversation_id.to_string()),
-        provider: "antigravity".to_string(),
+        provider: provider.unwrap_or("antigravity").to_string(),
         model: None,
         effort: None,
         agent: None,

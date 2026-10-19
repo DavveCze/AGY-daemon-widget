@@ -78,12 +78,14 @@ enum Commands {
     },
     /// Resume an existing session with an interactive prompt
     ResumePrompt {
-        #[arg(short, long)]
+        #[arg(short, long, visible_alias = "conversation")]
         conversation_id: String,
         #[arg(short, long)]
         workspace: String,
         #[arg(short, long)]
         prompt: String,
+        #[arg(long, default_value = "antigravity")]
+        provider: String,
     },
 }
 
@@ -410,8 +412,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             return Ok(());
         }
-        Commands::ResumePrompt { conversation_id, workspace, prompt } => {
-            match agy_daemon::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt) {
+        Commands::ResumePrompt { conversation_id, workspace, prompt, provider } => {
+            match agy_daemon::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt, Some(&provider)) {
                 Ok(_) => println!("Session resumed with prompt successfully in terminal."),
                 Err(e) => eprintln!("Error resuming session with prompt: {}", e),
             }

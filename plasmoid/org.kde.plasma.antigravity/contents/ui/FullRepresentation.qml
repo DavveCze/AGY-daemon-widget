@@ -954,13 +954,13 @@ Item {
                                             text: "✅ Ano (y)"
                                             highlighted: true
                                             Layout.preferredHeight: 26
-                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "y")
+                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "y", modelData.provider)
                                         }
 
                                         PlasmaComponents3.Button {
                                             text: "❌ Ne (n)"
                                             Layout.preferredHeight: 26
-                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "n")
+                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "n", modelData.provider)
                                         }
 
                                         Item { Layout.fillWidth: true }
@@ -990,7 +990,7 @@ Item {
                                     placeholderText: "Napsat instrukci pro toto sezení..."
                                     onAccepted: {
                                         if (text.trim().length > 0) {
-                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, text.trim());
+                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, text.trim(), modelData.provider);
                                             text = "";
                                         }
                                     }
@@ -1004,7 +1004,7 @@ Item {
                                     PlasmaComponents3.ToolTip.text: "Odeslat prompt a navázat sezení v terminálu"
                                     onClicked: {
                                         if (inlinePromptField.text.trim().length > 0) {
-                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, inlinePromptField.text.trim());
+                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, inlinePromptField.text.trim(), modelData.provider);
                                             inlinePromptField.text = "";
                                         }
                                     }

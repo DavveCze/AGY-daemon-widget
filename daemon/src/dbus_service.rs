@@ -147,7 +147,7 @@ impl AntigravityDbus {
         workspace: String,
         prompt: String,
     ) -> bool {
-        crate::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt)
+        crate::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt, None)
             .unwrap_or(false)
     }
 }

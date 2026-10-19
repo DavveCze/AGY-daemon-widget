@@ -213,10 +213,11 @@ PlasmoidItem {
         commandRunner.run(cmd);
     }
 
-    function resumeWithPrompt(conversationId, workspacePath, prompt) {
+    function resumeWithPrompt(conversationId, workspacePath, prompt, provider) {
         var ws = workspacePath ? workspacePath : ".";
         var safePrompt = prompt ? prompt.replace(/"/g, "\\\"") : "";
-        var cmd = root.daemonBinPath + " resume-prompt --conversation \"" + conversationId + "\" --workspace \"" + ws + "\" --prompt \"" + safePrompt + "\"";
+        var prov = (provider && provider.length > 0) ? provider : "antigravity";
+        var cmd = root.daemonBinPath + " resume-prompt --conversation-id \"" + (conversationId || "") + "\" --workspace \"" + ws + "\" --prompt \"" + safePrompt + "\" --provider " + prov;
         commandRunner.run(cmd);
     }
 

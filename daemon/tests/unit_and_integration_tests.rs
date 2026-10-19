@@ -1238,6 +1238,30 @@ fn test_steering_engine_execute_rejects_invalid_workspace() {
     assert!(execute_quick_prompt(&opts).is_err());
 }
 
+#[test]
+fn test_steering_engine_resume_session_with_quick_prompt() {
+    use agy_daemon::steering_engine::resume_session_with_quick_prompt;
+
+    // Invalid workspace rejects
+    let res = resume_session_with_quick_prompt(
+        "87059659-be37-42d3-b2d1-8b6d61ec3cdc",
+        "/nonexistent/directory/xyz123",
+        "Hello agent",
+        Some("antigravity"),
+    );
+    assert!(res.is_err());
+
+    // Invalid conversation ID with command injection is rejected
+    let res_inj = resume_session_with_quick_prompt(
+        "id; rm -rf /",
+        "/tmp",
+        "Hello agent",
+        Some("antigravity"),
+    );
+    assert!(res_inj.is_err());
+}
+
+
 
 
 
