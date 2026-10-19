@@ -96,15 +96,27 @@ fn run_git_status_check(dir: &Path) -> GitStatusInfo {
         _ => return GitStatusInfo::default(),
     }
 
-    // 2. Get current branch name
+    // 2. Get current branch name (prioritize branch --show-current)
     let branch = Command::new("git")
-        .arg("rev-parse")
-        .arg("--abbrev-ref")
-        .arg("HEAD")
+        .arg("branch")
+        .arg("--show-current")
         .current_dir(dir)
         .output()
+        .ok()
         .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-        .unwrap_or_else(|_| "HEAD".to_string());
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            Command::new("git")
+                .arg("rev-parse")
+                .arg("--abbrev-ref")
+                .arg("HEAD")
+                .current_dir(dir)
+                .output()
+                .ok()
+                .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "HEAD".to_string())
+        });
 
     // 3. Get changed files from porcelain status
     let status_out = Command::new("git")

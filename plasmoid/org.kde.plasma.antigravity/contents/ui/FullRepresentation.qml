@@ -587,9 +587,9 @@ Item {
 
                         width: ListView.view.width
                         height: {
-                            var h = (modelData.git_status && modelData.git_status.is_repo) ? 142 : 108;
-                            if (sessionDelegate.isExpanded) h += 232;
-                            if (fullRoot.diffOpenedPid === modelData.pid) h += 210;
+                            var h = (modelData.git_status && modelData.git_status.is_repo) ? 156 : 108;
+                            if (sessionDelegate.isExpanded) h += 240;
+                            if (fullRoot.diffOpenedPid === modelData.pid) h += 215;
                             if (fullRoot.activeRollbackPid === modelData.pid) h += 75;
                             return h;
                         }
@@ -766,7 +766,7 @@ Item {
                                     border.color: Kirigami.Theme.highlightColor
                                     border.width: 1
                                     Layout.preferredHeight: 22
-                                    Layout.preferredWidth: gitBranchRow.width + 12
+                                    Layout.preferredWidth: gitBranchRow.implicitWidth + 14
 
                                     RowLayout {
                                         id: gitBranchRow
@@ -778,7 +778,7 @@ Item {
                                             Layout.preferredHeight: 12
                                         }
                                         Text {
-                                            text: modelData.git_status?.branch || "HEAD"
+                                            text: (modelData.git_status?.branch && modelData.git_status.branch !== "HEAD") ? modelData.git_status.branch : (modelData.git_status?.branch || "main")
                                             font.pixelSize: 10
                                             font.bold: true
                                             color: Kirigami.Theme.highlightColor
@@ -811,7 +811,6 @@ Item {
                                 Item { Layout.fillWidth: true }
 
                                 PlasmaComponents3.Button {
-                                    visible: modelData.git_status?.files_changed > 0
                                     icon.name: "document-preview"
                                     text: "Diff"
                                     display: PlasmaComponents3.AbstractButton.TextBesideIcon
@@ -821,12 +820,15 @@ Item {
                                 }
 
                                 PlasmaComponents3.Button {
-                                    visible: modelData.git_status?.files_changed > 0
                                     icon.name: "edit-undo"
                                     text: "Vrátit"
                                     display: PlasmaComponents3.AbstractButton.TextBesideIcon
                                     Layout.preferredHeight: 24
-                                    PlasmaComponents3.ToolTip.text: "1-Click Rollback: Vrátit neuložené změny agenta"
+                                    enabled: (modelData.git_status?.files_changed > 0)
+                                    opacity: (modelData.git_status?.files_changed > 0) ? 1.0 : 0.45
+                                    PlasmaComponents3.ToolTip.text: (modelData.git_status?.files_changed > 0)
+                                        ? "1-Click Rollback: Vrátit neuložené změny agenta"
+                                        : "Pracovní strom je čistý (žádné změny k vrácení)"
                                     onClicked: {
                                         if (fullRoot.activeRollbackPid === modelData.pid) {
                                             fullRoot.activeRollbackPid = 0;
