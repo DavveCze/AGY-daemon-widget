@@ -10,4 +10,5 @@ pub mod quota;
 pub mod settings_manager;
 pub mod state;
 pub mod steering_engine;
+pub mod subagent_tracker;
 

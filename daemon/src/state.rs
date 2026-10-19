@@ -43,6 +43,31 @@ pub struct GitStatusInfo {
     pub modified_files: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct SubagentItem {
+    pub id: String,
+    pub name: String,
+    pub role: String,
+    pub type_name: String,
+    pub state: String,
+    pub state_label: String,
+    pub state_color: String,
+    pub is_active: bool,
+    pub pid: Option<u32>,
+    pub memory_mb: Option<f32>,
+    pub icon_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TeamHierarchy {
+    pub has_subagents: bool,
+    pub total_members: usize,
+    pub active_members: usize,
+    pub total_team_memory_mb: f32,
+    pub child_processes_count: usize,
+    pub subagents: Vec<SubagentItem>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveSession {
     pub pid: u32,
@@ -68,6 +93,8 @@ pub struct ActiveSession {
     pub git_status: GitStatusInfo,
     #[serde(default)]
     pub burn_rate: crate::burn_rate_tracker::SessionBurnRate,
+    #[serde(default)]
+    pub team: TeamHierarchy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

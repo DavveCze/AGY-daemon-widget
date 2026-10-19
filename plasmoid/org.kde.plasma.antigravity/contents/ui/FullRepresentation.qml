@@ -51,6 +51,22 @@ Item {
     property var activeRollbackPid: 0
     property var diffOpenedPid: 0
     property bool isQuickPromptOpen: false
+    property var expandedSwarmPids: ({})
+    property var activeKillTeamPid: 0
+
+    function isSwarmExpanded(pid) {
+        return !!expandedSwarmPids[pid];
+    }
+
+    function toggleSwarmExpanded(pid) {
+        var map = Object.assign({}, expandedSwarmPids);
+        if (map[pid]) {
+            delete map[pid];
+        } else {
+            map[pid] = true;
+        }
+        expandedSwarmPids = map;
+    }
 
     function toggleDiffView(pid, workspace) {
         if (diffOpenedPid === pid) {
@@ -907,6 +923,209 @@ Item {
                                             fullRoot.activeRollbackPid = 0;
                                         } else {
                                             fullRoot.activeRollbackPid = modelData.pid;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ==========================================
+                            // AGENT SWARM & SUBAGENTS SUMMARY BADGE
+                            // ==========================================
+                            RowLayout {
+                                Layout.fillWidth: true
+                                visible: Boolean(modelData.team && modelData.team.has_subagents)
+                                spacing: 6
+
+                                Rectangle {
+                                    radius: 3
+                                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.12)
+                                    border.color: Kirigami.Theme.highlightColor
+                                    border.width: 1
+                                    Layout.preferredHeight: 24
+                                    Layout.fillWidth: true
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: fullRoot.toggleSwarmExpanded(modelData.pid)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 8
+                                            anchors.rightMargin: 8
+                                            spacing: 6
+
+                                            Text {
+                                                text: "👥 Tým: " + (modelData.team ? modelData.team.total_members : 0) + " subagentů (" + (modelData.team ? modelData.team.active_members : 0) + " aktivních) • Celkem RAM: " + (modelData.team ? modelData.team.total_team_memory_mb : 0) + " MB"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                                color: Kirigami.Theme.textColor
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+
+                                            Kirigami.Icon {
+                                                source: fullRoot.isSwarmExpanded(modelData.pid) ? "arrow-up" : "arrow-down"
+                                                Layout.preferredWidth: 12
+                                                Layout.preferredHeight: 12
+                                            }
+                                        }
+                                    }
+                                }
+
+                                PlasmaComponents3.Button {
+                                    icon.name: "process-stop"
+                                    text: "Zastavit tým"
+                                    Layout.preferredHeight: 24
+                                    PlasmaComponents3.ToolTip.text: "Ukončit hlavní proces i všechny jeho běžící subagenty/pracovníky"
+                                    onClicked: {
+                                        if (fullRoot.activeKillTeamPid === modelData.pid) {
+                                            fullRoot.activeKillTeamPid = 0;
+                                        } else {
+                                            fullRoot.activeKillTeamPid = modelData.pid;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Swarm Kill Confirmation
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 52
+                                visible: fullRoot.activeKillTeamPid === modelData.pid
+                                radius: 4
+                                color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.15)
+                                border.color: Kirigami.Theme.negativeTextColor
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 8
+
+                                    Kirigami.Icon {
+                                        source: "dialog-warning"
+                                        Layout.preferredWidth: 16
+                                        Layout.preferredHeight: 16
+                                    }
+                                    Text {
+                                        text: "Opravdu ukončit hlavní proces (PID " + modelData.pid + ") i všech " + (modelData.team ? modelData.team.total_members : 0) + " subagentů?"
+                                        font.bold: true
+                                        font.pixelSize: 10
+                                        color: Kirigami.Theme.negativeTextColor
+                                        Layout.fillWidth: true
+                                    }
+                                    PlasmaComponents3.Button {
+                                        text: "Zrušit"
+                                        Layout.preferredHeight: 26
+                                        onClicked: fullRoot.activeKillTeamPid = 0
+                                    }
+                                    PlasmaComponents3.Button {
+                                        text: "Potvrdit ukončení"
+                                        icon.name: "process-stop"
+                                        highlighted: true
+                                        Layout.preferredHeight: 26
+                                        onClicked: {
+                                            root.killTeam(modelData.pid);
+                                            fullRoot.activeKillTeamPid = 0;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Swarm Expandable Tree View
+                            Rectangle {
+                                Layout.fillWidth: true
+                                visible: fullRoot.isSwarmExpanded(modelData.pid) && Boolean(modelData.team && modelData.team.subagents && modelData.team.subagents.length > 0)
+                                implicitHeight: swarmCol.implicitHeight + 14
+                                radius: 4
+                                color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.8)
+                                border.color: fullRoot.borderColor
+                                border.width: 1
+
+                                ColumnLayout {
+                                    id: swarmCol
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 6
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: "Hierarchie běžících subagentů (Swarm):"
+                                            font.bold: true
+                                            font.pixelSize: 10
+                                            color: Kirigami.Theme.disabledTextColor
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        Text {
+                                            text: (modelData.team ? modelData.team.total_members : 0) + " členů v týmu"
+                                            font.pixelSize: 9
+                                            color: Kirigami.Theme.disabledTextColor
+                                        }
+                                    }
+
+                                    Repeater {
+                                        model: modelData.team?.subagents ?? []
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            required property int index
+                                            Layout.fillWidth: true
+                                            implicitHeight: 32
+                                            radius: 3
+                                            color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04)
+                                            border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+                                            border.width: 1
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 8
+                                                anchors.rightMargin: 8
+                                                spacing: 6
+
+                                                Text {
+                                                    text: (index === (parent.parent.count - 1)) ? "└─" : "├─"
+                                                    font.family: "monospace"
+                                                    font.pixelSize: 11
+                                                    color: Kirigami.Theme.disabledTextColor
+                                                }
+
+                                                Text {
+                                                    text: modelData.icon_name || "🤖"
+                                                    font.pixelSize: 12
+                                                }
+
+                                                Text {
+                                                    text: modelData.name || modelData.role || "Subagent"
+                                                    font.bold: true
+                                                    font.pixelSize: 10
+                                                    color: Kirigami.Theme.textColor
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Text {
+                                                    text: "Typ: " + (modelData.type_name || "worker")
+                                                    font.pixelSize: 9
+                                                    color: Kirigami.Theme.disabledTextColor
+                                                }
+
+                                                Rectangle {
+                                                    radius: 2
+                                                    color: modelData.state_color || "#10b981"
+                                                    Layout.preferredHeight: 16
+                                                    Layout.preferredWidth: subStateText.contentWidth + 8
+
+                                                    Text {
+                                                        id: subStateText
+                                                        anchors.centerIn: parent
+                                                        text: modelData.state_label || "Běží"
+                                                        font.pixelSize: 8
+                                                        font.bold: true
+                                                        color: "#ffffff"
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }

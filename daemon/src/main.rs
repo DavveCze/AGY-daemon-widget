@@ -34,6 +34,11 @@ enum Commands {
     Dump,
     /// Terminate an active agent session by PID
     Kill { pid: u32 },
+    /// Terminate an active agent session and all its child subagents/workers
+    KillTeam {
+        #[arg(short, long)]
+        pid: u32,
+    },
     /// Update active model in settings (sets both defaultModel and display name)
     SetModel {
         id: String,
@@ -132,6 +137,7 @@ fn collect_state(
     cached_skills: &[agy_daemon::state::SkillItem],
     quota: &agy_daemon::quota::RealQuotaData,
     burn_tracker: &mut agy_daemon::burn_rate_tracker::BurnRateTracker,
+    brain_dir: &Path,
 ) -> AgyState {
     let settings = read_settings(settings_path);
     let mut active_sessions = registry.scan_all_sessions();
@@ -140,6 +146,12 @@ fn collect_state(
 
     for session in &mut active_sessions {
         session.git_status = agy_daemon::git_inspector::inspect_git_status(&session.workspace_path);
+        session.team = agy_daemon::subagent_tracker::build_team_hierarchy(
+            brain_dir,
+            &session.conversation_id,
+            session.pid,
+            session.stats.memory_rss_mb,
+        );
         let rate = burn_tracker.record_and_evaluate_session(
             session.pid,
             session.token_usage.total_tokens,
@@ -289,6 +301,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &skills,
                 &quota,
                 &mut burn_tracker,
+                &brain_dir,
             );
             println!("{}", serde_json::to_string_pretty(&st)?);
             return Ok(());
@@ -312,6 +325,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Successfully signaled PID {}", pid);
             } else {
                 eprintln!("Failed to signal PID {}", pid);
+            }
+            return Ok(());
+        }
+        Commands::KillTeam { pid } => {
+            let config_path = AgentiComConfig::get_default_config_path();
+            let config = AgentiComConfig::load_or_default(&config_path);
+            let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
+            let active_sessions = registry.scan_all_sessions();
+
+            if let Err(e) = agy_daemon::proc_monitor::verify_killable_ai_session(pid, &active_sessions) {
+                eprintln!("[agenticom-security] Blocked illegal kill_team command for PID {}: {}", pid, e);
+                return Ok(());
+            }
+
+            match agy_daemon::subagent_tracker::kill_entire_team(pid) {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => eprintln!("Chyba při ukončování týmu: {}", e),
             }
             return Ok(());
         }
@@ -441,6 +471,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &cached_skills,
         &initial_quota,
         &mut burn_tracker,
+        &brain_dir,
     );
     write_shared_memory_state(&initial_state, &mut last_written_json);
     unsafe { libc::malloc_trim(0); }
@@ -527,6 +558,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &cached_skills,
                     &current_quota,
                     &mut burn_tracker,
+                    &brain_dir,
                 );
                 write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(
@@ -554,6 +586,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &cached_skills,
                     &current_quota,
                     &mut burn_tracker,
+                    &brain_dir,
                 );
                 write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(

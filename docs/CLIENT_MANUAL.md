@@ -57,6 +57,12 @@ Launch tasks without having to open a terminal first:
 * **Interactive Confirmations:** When an agent waits for user approval (`is_asking_user`), an inline decision banner appears with `[ ✅ Ano (y) ]` and `[ ❌ Ne (n) ]` buttons. You can answer directly from the widget without switching to the terminal.
 * **Inline Steering Input:** Each active card has an inline prompt bar allowing you to type instructions and send them directly into the session with a single click or by pressing Enter.
 
+### Agent Swarm & Subagent Tree View
+When a primary agent delegates work to specialized subagents (e.g. *CRO Psychologist*, *DBA Guardian*, *System Architect*), AgentiCom provides real-time hierarchical visibility:
+* **Team Summary Badge:** Displays total subagent count, active worker count, and aggregated team RAM consumption (e.g. `👥 Tým: 3 subagenti (3 aktivní) • Celkem RAM: 751 MB`).
+* **Expandable Tree View:** Click the badge to expand an ASCII-styled tree hierarchy showing each subagent's visual persona icon, role, type, and live state (`Běží`, `Dokončeno`, `Čeká`).
+* **Stop Entire Team Action:** The **"Zastavit tým"** button cleanly halts both the root session and all child processes recursively with an ergonomic safety confirmation.
+
 ### Resuming an Existing Session
 If you accidentally close a terminal window, your agent continues running safely in the background.
 1. Click the terminal icon (`utilities-terminal`) on the session card.

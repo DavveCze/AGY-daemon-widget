@@ -189,7 +189,7 @@ pub fn read_proc_cwd(pid: u32) -> (String, String) {
     (workspace_path, project_name)
 }
 
-fn procfs_page_size() -> Result<u64, ()> {
+pub fn procfs_page_size() -> Result<u64, ()> {
     unsafe {
         let sz = libc::sysconf(libc::_SC_PAGESIZE);
         if sz > 0 {

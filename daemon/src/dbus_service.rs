@@ -52,6 +52,23 @@ impl AntigravityDbus {
         }
     }
 
+    async fn kill_team(&self, pid: u32) -> bool {
+        let sessions = {
+            let st = match self.state.lock() {
+                Ok(guard) => guard,
+                Err(p) => p.into_inner(),
+            };
+            st.active_sessions.clone()
+        };
+
+        if let Err(e) = crate::proc_monitor::verify_killable_ai_session(pid, &sessions) {
+            eprintln!("[agenticom-security] Blocked illegal kill_team for PID {}: {}", pid, e);
+            return false;
+        }
+
+        crate::subagent_tracker::kill_entire_team(pid).is_ok()
+    }
+
     async fn set_model(&self, model: String) -> bool {
         let display_name = crate::settings_manager::get_all_available_models()
             .into_iter()

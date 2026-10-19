@@ -114,6 +114,7 @@ impl AgentProvider for AntigravityProvider {
                 provider_badge_color: "#3b82f6".to_string(),
                 git_status: Default::default(),
                 burn_rate: Default::default(),
+                team: Default::default(),
             });
         }
 

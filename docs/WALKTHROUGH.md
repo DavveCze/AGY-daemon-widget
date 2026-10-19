@@ -222,12 +222,40 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 ---
 
-## 10. Comprehensive Verification & Testing Suite (49 Tests)
+## 10. Agent Swarm & Subagent Tree View
+
+AgentiCom features an active **Swarm Hierarchy Tracker** ([`daemon/src/subagent_tracker.rs`](../daemon/src/subagent_tracker.rs)) that continuously tracks subagents and child worker processes:
+
+* **Real-Time Subagent Discovery:**
+  * Reads subagent metadata from `.system_generated/subagents/*.json` per conversation.
+  * Identifies specialized agent personas with visual iconography:
+    - 🧠 `cro-psychologist` (CRO Psychologist)
+    - 🛡️ `dba-guardian` (Database Administrator)
+    - 🏗️ `system-architect` (System Architect)
+    - 📊 `project-estimator` (Project Estimator)
+    - 🌐 `geo-search-bot` (GEO Search Bot)
+    - 📦 `module-integrator` (Module Integrator)
+    - 🔬 `research` (Codebase Researcher)
+* **Recursive Process Tree Tracking (`/proc` BFS):**
+  * Traverses `/proc/{pid}/stat` to find all child processes (`ppid == session.pid` and transitive descendants).
+  * Computes aggregated team memory: sum of parent process RSS + all child worker processes RAM.
+* **KDE Plasma Swarm UI:**
+  * **Summary Badge:** Displays total team members, active count, and aggregated team RAM (e.g. `👥 Tým: 3 subagenti (3 aktivní) • Celkem RAM: 751 MB ▾`).
+  * **Interactive Tree View:** Expands to show an ASCII tree structure (`├─`, `└─`) with each subagent's role, type, and live state badge (`Běží`, `Dokončeno`, `Čeká`).
+  * **1-Click Stop Team Action (`[ Zastavit tým ]`):** Recursively signals `SIGTERM` to all child processes and the parent session with safety confirmation to immediately halt runaway agent swarms.
+
+---
+
+## 11. Comprehensive Verification & Testing Suite (53 Tests)
 
 The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
 
 ```
-running 49 tests
+running 53 tests
+test test_subagent_tracker_map_state_and_icons ... ok
+test test_subagent_tracker_scan_subagents_directory ... ok
+test test_subagent_tracker_security_kill_entire_team ... ok
+test test_steering_engine_resume_session_with_quick_prompt ... ok
 test test_steering_engine_prompt_sanitization_valid_and_invalid ... ok
 test test_steering_engine_build_cli_arguments_antigravity ... ok
 test test_steering_engine_build_cli_arguments_claude_and_codex ... ok

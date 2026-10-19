@@ -57,6 +57,12 @@ Nemusíte nejprve otevírat terminál a teprve tam psát zadání:
 * **Když se agent ptá na potvrzení:** Pokud agent čeká na vaše schválení (např. spuštění příkazu nebo zápis do souboru), na jeho kartě se rozsvítí modrý rámeček s tlačítky **„✅ Ano (y)“** a **„❌ Ne (n)“**. Nemusíte vůbec přepínat do terminálu – stačí kliknout a agent pokračuje.
 * **Inline zadání instrukce:** Přímo na kartě běžícího úkolu máte k dispozici textové pole *„Napsat instrukci pro toto sezení...“*. Zadejte doplňující pokyn a stiskněte Enter nebo tlačítko **Odeslat**.
 
+### Přehled týmů a subagentů (Agent Swarm & Tree View)
+Pokud hlavní agent deleguje práci na specializované subagenty (např. *CRO Psychologist*, *DBA Guardian*, *System Architect*), widget vám je přehledně zobrazí:
+* **Odznak týmu na kartě:** Zobrazuje celkový počet subagentů a souhrnnou paměť RAM za celý tým (např. `👥 Tým: 3 subagenti (3 aktivní) • Celkem RAM: 751 MB`).
+* **Rozbalovací strom (Tree View):** Po kliknutí na odznak se rozbalí přehledný strom všech potomků s jejich ikonami, rolemi a aktuálními stavy (`Běží`, `Dokončeno`, `Čeká`).
+* **Zastavit celý tým:** Tlačítko **„Zastavit tým“** umožňuje s bezpečnostním potvrzením ukončit nejen hlavní proces, ale i všechny jeho běžící subagenty a procesy najednou.
+
 ### Jak se vrátit do rozpracovaného sezení
 Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpečně běží.
 1. Na kartě sezení klikněte na ikonu terminálu (`utilities-terminal`).

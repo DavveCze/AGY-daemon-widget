@@ -61,6 +61,7 @@ fn test_state_serialization_roundtrip() {
             provider_badge_color: "#3b82f6".to_string(),
             git_status: Default::default(),
             burn_rate: Default::default(),
+            team: Default::default(),
         }],
         recent_conversations: vec![ConversationItem {
             conversation_id: "conv-abc-123".to_string(),
@@ -835,6 +836,7 @@ fn test_security_kill_session_unauthorized_uid_rejected() {
         provider_badge_color: "".to_string(),
         git_status: Default::default(),
         burn_rate: Default::default(),
+        team: Default::default(),
     }];
 
     assert_eq!(verify_killable_ai_session(1, &dummy), Err(KillSecurityError::InvalidPid));
@@ -1260,6 +1262,112 @@ fn test_steering_engine_resume_session_with_quick_prompt() {
     );
     assert!(res_inj.is_err());
 }
+
+#[test]
+fn test_subagent_tracker_map_state_and_icons() {
+    use agy_daemon::subagent_tracker::{get_subagent_icon, map_subagent_state};
+
+    assert_eq!(get_subagent_icon("cro-psychologist"), "🧠");
+    assert_eq!(get_subagent_icon("dba-guardian"), "🛡️");
+    assert_eq!(get_subagent_icon("system-architect"), "🏗️");
+    assert_eq!(get_subagent_icon("project-estimator"), "📊");
+    assert_eq!(get_subagent_icon("geo-search-bot"), "🌐");
+    assert_eq!(get_subagent_icon("module-integrator"), "📦");
+    assert_eq!(get_subagent_icon("research"), "🔬");
+    assert_eq!(get_subagent_icon("image-generator"), "🎨");
+    assert_eq!(get_subagent_icon("self"), "🔄");
+    assert_eq!(get_subagent_icon("unknown-specialist"), "🤖");
+
+    let (label_alive, col_alive, act_alive) = map_subagent_state("SUBAGENT_STATE_ALIVE");
+    assert_eq!(label_alive, "Běží");
+    assert_eq!(col_alive, "#10b981");
+    assert!(act_alive);
+
+    let (label_wait, col_wait, act_wait) = map_subagent_state("WAITING_FOR_INPUT");
+    assert_eq!(label_wait, "Čeká");
+    assert_eq!(col_wait, "#f59e0b");
+    assert!(act_wait);
+
+    let (label_done, col_done, act_done) = map_subagent_state("SUBAGENT_STATE_DONE");
+    assert_eq!(label_done, "Dokončeno");
+    assert_eq!(col_done, "#3b82f6");
+    assert!(!act_done);
+
+    let (label_err, col_err, act_err) = map_subagent_state("ERROR");
+    assert_eq!(label_err, "Chyba");
+    assert_eq!(col_err, "#ef4444");
+    assert!(!act_err);
+}
+
+#[test]
+fn test_subagent_tracker_scan_subagents_directory() {
+    use agy_daemon::subagent_tracker::{build_team_hierarchy, scan_subagents_for_conversation};
+    use tempfile::tempdir;
+
+    let tmp = tempdir().expect("Failed to create tempdir");
+    let brain_dir = tmp.path();
+
+    let conv_id = "test-conv-1234";
+    let subagents_dir = brain_dir
+        .join(conv_id)
+        .join(".system_generated")
+        .join("subagents");
+    fs::create_dir_all(&subagents_dir).expect("Failed to create subagents dir");
+
+    let sub1_json = r#"{
+        "conversationId": "sub-1-abc",
+        "subagentDescriptor": {
+            "typeName": "dba-guardian",
+            "role": "DBA Guardian"
+        },
+        "state": "SUBAGENT_STATE_ALIVE",
+        "spawnStepIndex": 42
+    }"#;
+    fs::write(subagents_dir.join("sub-1-abc.json"), sub1_json).unwrap();
+
+    let sub2_json = r#"{
+        "conversationId": "sub-2-def",
+        "subagentDescriptor": {
+            "typeName": "cro-psychologist",
+            "role": "CRO Psychologist"
+        },
+        "state": "SUBAGENT_STATE_DONE",
+        "spawnStepIndex": 55
+    }"#;
+    fs::write(subagents_dir.join("sub-2-def.json"), sub2_json).unwrap();
+
+    let subagents = scan_subagents_for_conversation(brain_dir, conv_id);
+    assert_eq!(subagents.len(), 2);
+
+    let cro = subagents.iter().find(|s| s.type_name == "cro-psychologist").unwrap();
+    assert_eq!(cro.icon_name, "🧠");
+    assert_eq!(cro.state_label, "Dokončeno");
+    assert!(!cro.is_active);
+
+    let dba = subagents.iter().find(|s| s.type_name == "dba-guardian").unwrap();
+    assert_eq!(dba.icon_name, "🛡️");
+    assert_eq!(dba.state_label, "Běží");
+    assert!(dba.is_active);
+
+    let team = build_team_hierarchy(brain_dir, conv_id, 999999, 120.0);
+    assert!(team.has_subagents);
+    assert_eq!(team.total_members, 2);
+    assert_eq!(team.active_members, 1);
+    assert!(team.total_team_memory_mb >= 120.0);
+}
+
+#[test]
+fn test_subagent_tracker_security_kill_entire_team() {
+    use agy_daemon::subagent_tracker::kill_entire_team;
+
+    // Reject PID 0 and PID 1
+    assert!(kill_entire_team(0).is_err());
+    assert!(kill_entire_team(1).is_err());
+
+    // Non-existent PID returns error
+    assert!(kill_entire_team(99999999).is_err());
+}
+
 
 
 

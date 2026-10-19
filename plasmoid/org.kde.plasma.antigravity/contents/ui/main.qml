@@ -137,6 +137,10 @@ PlasmoidItem {
         commandRunner.run(root.daemonBinPath + " kill " + pid);
     }
 
+    function killTeam(pid) {
+        commandRunner.run(root.daemonBinPath + " kill-team --pid " + pid);
+    }
+
     function setDefaultModel(modelId, modelName) {
         commandRunner.run(root.daemonBinPath + " set-model \"" + modelId + "\" \"" + modelName + "\"");
     }

@@ -193,6 +193,7 @@ impl AgentProvider for ClaudeProvider {
                 provider_badge_color: "#ea580c".to_string(),
                 git_status: Default::default(),
                 burn_rate: Default::default(),
+                team: Default::default(),
             });
         }
 
