@@ -586,14 +586,9 @@ Item {
                         property bool isExpanded: fullRoot.isSessionExpanded(modelData.pid)
 
                         width: ListView.view.width
-                        height: {
-                            var h = (modelData.git_status && modelData.git_status.is_repo) ? 156 : 108;
-                            if (sessionDelegate.isExpanded) h += 240;
-                            if (fullRoot.diffOpenedPid === modelData.pid) h += 215;
-                            if (fullRoot.activeRollbackPid === modelData.pid) h += 75;
-                            return h;
-                        }
-                        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
+                        implicitHeight: sessionCol.implicitHeight + Kirigami.Units.smallSpacing * 2 + 10
+                        height: implicitHeight
+                        Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
                         radius: Kirigami.Units.smallSpacing
                         color: Kirigami.Theme.alternateBackgroundColor
@@ -617,12 +612,14 @@ Item {
                         }
 
                         ColumnLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: Kirigami.Units.smallSpacing + 3
-                            anchors.topMargin: Kirigami.Units.smallSpacing
-                            anchors.rightMargin: Kirigami.Units.smallSpacing
-                            anchors.bottomMargin: Kirigami.Units.smallSpacing
-                            spacing: 4
+                            id: sessionCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.leftMargin: Kirigami.Units.smallSpacing + 5
+                            anchors.topMargin: Kirigami.Units.smallSpacing + 4
+                            anchors.rightMargin: Kirigami.Units.smallSpacing + 5
+                            spacing: 6
 
                             // Top row: Project name, PID, Status, Expand toggle
                             RowLayout {
@@ -758,30 +755,35 @@ Item {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                visible: modelData.git_status && modelData.git_status.is_repo
+                                visible: Boolean(modelData.git_status && modelData.git_status.is_repo)
 
                                 Rectangle {
                                     radius: 3
                                     color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
                                     border.color: Kirigami.Theme.highlightColor
                                     border.width: 1
-                                    Layout.preferredHeight: 22
-                                    Layout.preferredWidth: gitBranchRow.implicitWidth + 14
+                                    Layout.preferredHeight: 24
+                                    Layout.preferredWidth: Math.min(gitBranchRow.implicitWidth + 14, 200)
 
                                     RowLayout {
                                         id: gitBranchRow
-                                        anchors.centerIn: parent
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 6
+                                        anchors.rightMargin: 6
                                         spacing: 4
+
                                         Kirigami.Icon {
                                             source: "vcs-branch"
                                             Layout.preferredWidth: 12
                                             Layout.preferredHeight: 12
                                         }
                                         Text {
-                                            text: (modelData.git_status?.branch && modelData.git_status.branch !== "HEAD") ? modelData.git_status.branch : (modelData.git_status?.branch || "main")
+                                            text: (modelData.git_status && modelData.git_status.branch) ? modelData.git_status.branch : "Git"
                                             font.pixelSize: 10
                                             font.bold: true
                                             color: Kirigami.Theme.highlightColor
+                                            elide: Text.ElideMiddle
+                                            Layout.fillWidth: true
                                         }
                                     }
                                 }
@@ -793,7 +795,7 @@ Item {
                                         : Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.12)
                                     border.color: (modelData.git_status?.files_changed > 0) ? "#f59e0b" : Kirigami.Theme.positiveTextColor
                                     border.width: 1
-                                    Layout.preferredHeight: 22
+                                    Layout.preferredHeight: 24
                                     Layout.preferredWidth: gitChangesLabel.contentWidth + 14
 
                                     Text {

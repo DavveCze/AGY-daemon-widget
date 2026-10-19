@@ -116,14 +116,18 @@ echo "  -> Saved configuration to: $CONFIG_FILE"
 
 # 2. Determine daemon binary source
 DAEMON_SOURCE=""
-if [ -f "$PROJECT_DIR/bin/agy-daemon" ]; then
+if [ -f "$PROJECT_DIR/daemon/target/release/agy-daemon" ]; then
+    DAEMON_SOURCE="$PROJECT_DIR/daemon/target/release/agy-daemon"
+elif [ -f "$PROJECT_DIR/bin/agenticom-daemon" ]; then
+    DAEMON_SOURCE="$PROJECT_DIR/bin/agenticom-daemon"
+elif [ -f "$PROJECT_DIR/bin/agy-daemon" ]; then
     DAEMON_SOURCE="$PROJECT_DIR/bin/agy-daemon"
 elif [ -f "$PROJECT_DIR/dist/agy-daemon" ]; then
     DAEMON_SOURCE="$PROJECT_DIR/dist/agy-daemon"
 fi
 
 if [ "$PREBUILT" = true ] && [ -n "$DAEMON_SOURCE" ]; then
-    echo "[2/5] Using prebuilt daemon binary: $DAEMON_SOURCE"
+    echo "[2/5] Using prebuilt/existing daemon binary: $DAEMON_SOURCE"
 elif command -v cargo >/dev/null 2>&1 && [ -d "$PROJECT_DIR/daemon" ]; then
     echo "[2/5] Building optimized AgentiCom daemon from source (Rust native CPU)..."
     cd "$PROJECT_DIR/daemon"
@@ -132,9 +136,6 @@ elif command -v cargo >/dev/null 2>&1 && [ -d "$PROJECT_DIR/daemon" ]; then
     cd "$PROJECT_DIR"
 elif [ -n "$DAEMON_SOURCE" ]; then
     echo "[2/5] Cargo not found, falling back to prebuilt binary: $DAEMON_SOURCE"
-elif [ -f "$PROJECT_DIR/daemon/target/release/agy-daemon" ]; then
-    echo "[2/5] Using existing target/release binary"
-    DAEMON_SOURCE="$PROJECT_DIR/daemon/target/release/agy-daemon"
 else
     echo "ERROR: Neither cargo (Rust) nor prebuilt binary found!"
     exit 1
