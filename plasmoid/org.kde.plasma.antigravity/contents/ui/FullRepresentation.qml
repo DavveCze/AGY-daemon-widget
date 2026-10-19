@@ -1496,13 +1496,40 @@ Item {
                                         }
                                     }
 
-                                    QQC2.ScrollView {
+                                    Flickable {
+                                        id: diffFlickable
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         clip: true
+                                        contentWidth: Math.max(width, diffTextArea.implicitWidth)
+                                        contentHeight: Math.max(height, diffTextArea.implicitHeight)
+
+                                        QQC2.ScrollBar.vertical: QQC2.ScrollBar { }
+                                        QQC2.ScrollBar.horizontal: QQC2.ScrollBar { }
+
+                                        onContentYChanged: {
+                                            if (contentY > 0 || moving || dragging || flicking) {
+                                                fullRoot.savedDiffScrollY = contentY;
+                                            }
+                                        }
+                                        onContentXChanged: {
+                                            if (contentX > 0 || moving || dragging || flicking) {
+                                                fullRoot.savedDiffScrollX = contentX;
+                                            }
+                                        }
+
+                                        Component.onCompleted: {
+                                            if (fullRoot.savedDiffScrollY > 0) {
+                                                contentY = fullRoot.savedDiffScrollY;
+                                            }
+                                            if (fullRoot.savedDiffScrollX > 0) {
+                                                contentX = fullRoot.savedDiffScrollX;
+                                            }
+                                        }
 
                                         QQC2.TextArea {
                                             id: diffTextArea
+                                            width: Math.max(diffFlickable.width, implicitWidth)
                                             readOnly: true
                                             text: root.activeDiffContent
                                             font.family: "monospace"
@@ -1511,32 +1538,12 @@ Item {
                                             background: null
                                             wrapMode: TextEdit.NoWrap
 
-                                            onContentYChanged: {
-                                                if (contentY > 0 || moving || dragging || flicking) {
-                                                    fullRoot.savedDiffScrollY = contentY;
-                                                }
-                                            }
-                                            onContentXChanged: {
-                                                if (contentX > 0 || moving || dragging || flicking) {
-                                                    fullRoot.savedDiffScrollX = contentX;
-                                                }
-                                            }
-
-                                            Component.onCompleted: {
-                                                if (fullRoot.savedDiffScrollY > 0) {
-                                                    contentY = fullRoot.savedDiffScrollY;
-                                                }
-                                                if (fullRoot.savedDiffScrollX > 0) {
-                                                    contentX = fullRoot.savedDiffScrollX;
-                                                }
-                                            }
-
                                             onTextChanged: {
                                                 if (fullRoot.savedDiffScrollY > 0) {
                                                     Qt.callLater(() => {
-                                                        if (diffTextArea) {
-                                                            diffTextArea.contentY = fullRoot.savedDiffScrollY;
-                                                            diffTextArea.contentX = fullRoot.savedDiffScrollX;
+                                                        if (diffFlickable) {
+                                                            diffFlickable.contentY = fullRoot.savedDiffScrollY;
+                                                            diffFlickable.contentX = fullRoot.savedDiffScrollX;
                                                         }
                                                     });
                                                 }
