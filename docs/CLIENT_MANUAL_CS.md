@@ -37,9 +37,15 @@ V záložce **„Aktivní sezení“** vidíte přehlednou kartu každého běž
 
 ### Jak zkontrolovat změny a vrátit je zpět (1-Click Rollback)
 AgentiCom v reálném čase sleduje stav Gitu v pracovní složce každého sezení:
-* **Ukazatel stavu repozitáře:** Vidíte aktuální větev (např. `main`) a počet neuložených změn (`3 změn (+42/-10)`).
+* **Ukazatel stavu repozitáře:** Vidíte aktuální větev (např. `feat/predictive-token-shield-burn-rate`) a počet neuložených změn (`3 změn (+42/-10)`).
 * **Zobrazení změn (tlačítko `Diff`):** Kliknutím rozbalíte přehledný textový výpis úprav nebo si jej otevřete v samostatném okně terminálu.
 * **Okamžité vrácení změn (tlačítko `Vrátit`):** Pokud agent vygeneroval chybný kód, klikněte na **„Vrátit“**. Zobrazí se bezpečnostní potvrzovací lišta, kde můžete zvolit i smazání nově vytvořených souborů, a jediným kliknutím vrátit projekt do čistého stavu posledního commitu.
+
+### Prediktivní Token Shield & Burn Rate Radar (Ochrana limitů)
+AgentiCom v reálném čase počítá rychlost pálení tokenů vašimi AI agenty:
+* **Globální Token Radar (v záhlaví účtu):** Zobrazuje celkovou rychlost napříč všemi sezeními (např. `⚡ 14.7k tok/min (↗ Rostoucí)`). Po najetí myší uvidíte odhadovaný čas do vyčerpání 5hodinové kvóty.
+* **Badge rychlosti u sezení:** Každá karta úkolu ukazuje své konkrétní tempo (např. `🔥 14.7k tok/min` nebo `• Klid`) a odhad zbývajícího času do zaplnění 1M kontextového okna.
+* **Proaktivní varování Token Shield:** Pokud se agent zacyklí nebo začne abnormálně rychle pálit tokeny (> 75 000 tok/min), widget okamžitě odešle desktopovou notifikaci, abyste mohli včas zasáhnout dříve, než vám dojde kvóta.
 
 ### Jak se vrátit do rozpracovaného sezení
 Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpečně běží.

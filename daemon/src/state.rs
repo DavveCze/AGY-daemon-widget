@@ -66,6 +66,8 @@ pub struct ActiveSession {
     pub provider_badge_color: String,
     #[serde(default)]
     pub git_status: GitStatusInfo,
+    #[serde(default)]
+    pub burn_rate: crate::burn_rate_tracker::SessionBurnRate,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,6 +145,8 @@ pub struct OverallStats {
     pub outsource_usage_percent: f32,
     pub outsource_reset_text: String,
     pub real_quota: crate::quota::RealQuotaData,
+    #[serde(default)]
+    pub burn_radar: crate::burn_rate_tracker::GlobalBurnRadar,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

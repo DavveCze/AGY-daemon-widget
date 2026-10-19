@@ -213,6 +213,42 @@ Item {
                             color: Kirigami.Theme.highlightedTextColor
                         }
                     }
+
+                    Rectangle {
+                        radius: 3
+                        color: Qt.rgba(
+                            stateData?.stats?.burn_radar?.burn_level === "spike" ? 0.94 : (stateData?.stats?.burn_radar?.burn_level === "high" ? 0.92 : 0.06),
+                            stateData?.stats?.burn_radar?.burn_level === "spike" ? 0.27 : (stateData?.stats?.burn_radar?.burn_level === "high" ? 0.35 : 0.72),
+                            stateData?.stats?.burn_radar?.burn_level === "spike" ? 0.27 : (stateData?.stats?.burn_radar?.burn_level === "high" ? 0.05 : 0.51),
+                            0.15
+                        )
+                        border.color: stateData?.stats?.burn_radar?.level_color || fullRoot.borderColor
+                        border.width: 1
+                        Layout.preferredWidth: radarText.contentWidth + 14
+                        Layout.preferredHeight: 20
+                        visible: Boolean(stateData?.stats?.burn_radar)
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 3
+                            Text {
+                                text: stateData?.stats?.burn_radar?.burn_level === "spike" ? "🔥" : (stateData?.stats?.burn_radar?.burn_level === "high" ? "⚡" : "🛡️")
+                                font.pixelSize: 9
+                            }
+                            Text {
+                                id: radarText
+                                text: stateData?.stats?.burn_radar?.radar_summary || "Radar: 0 tok/min"
+                                font.pixelSize: 10
+                                font.bold: true
+                                color: stateData?.stats?.burn_radar?.level_color || Kirigami.Theme.textColor
+                            }
+                        }
+
+                        PlasmaComponents3.ToolTip.text: "Globální Token Radar:\n• Celkové tempo pálení: "
+                            + (stateData?.stats?.burn_radar?.total_tokens_per_minute ? Math.round(stateData.stats.burn_radar.total_tokens_per_minute) + " tok/min" : "0 tok/min")
+                            + "\n• Trend: " + (stateData?.stats?.burn_radar?.trend || "klid")
+                            + (stateData?.stats?.burn_radar?.est_minutes_to_five_hour_limit ? ("\n• Odhad vyčerpání 5h kvóty: ~" + stateData.stats.burn_radar.est_minutes_to_five_hour_limit + " min") : "")
+                    }
                 }
 
                 // Two Distinct Cards: Gemini Core & Claude/GPT Outsource
@@ -726,6 +762,40 @@ Item {
                                     color: Kirigami.Theme.disabledTextColor
                                 }
 
+                                Rectangle {
+                                    radius: 3
+                                    visible: Boolean(modelData.burn_rate && modelData.burn_rate.burn_level !== "idle")
+                                    color: Qt.rgba(
+                                        modelData.burn_rate?.is_spike ? 0.94 : (modelData.burn_rate?.burn_level === "high" ? 0.92 : 0.06),
+                                        modelData.burn_rate?.is_spike ? 0.27 : (modelData.burn_rate?.burn_level === "high" ? 0.35 : 0.72),
+                                        modelData.burn_rate?.is_spike ? 0.27 : (modelData.burn_rate?.burn_level === "high" ? 0.05 : 0.51),
+                                        0.15
+                                    )
+                                    border.color: modelData.burn_rate?.level_color || Kirigami.Theme.highlightColor
+                                    border.width: 1
+                                    Layout.preferredHeight: 18
+                                    Layout.preferredWidth: burnRateLabel.contentWidth + 14
+
+                                    RowLayout {
+                                        anchors.centerIn: parent
+                                        spacing: 3
+                                        Text {
+                                            text: modelData.burn_rate?.is_spike ? "🔥" : (modelData.burn_rate?.burn_level === "high" ? "⚡" : "•")
+                                            font.pixelSize: 9
+                                        }
+                                        Text {
+                                            id: burnRateLabel
+                                            text: modelData.burn_rate?.formatted_rate || ""
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            color: modelData.burn_rate?.level_color || Kirigami.Theme.textColor
+                                        }
+                                    }
+
+                                    PlasmaComponents3.ToolTip.text: "Rychlost pálení tokenů: " + (modelData.burn_rate?.formatted_rate || "0 tok/min")
+                                        + (modelData.burn_rate?.est_minutes_to_context_limit ? ("\nOdhad do zaplnění 1M kontextu: ~" + modelData.burn_rate.est_minutes_to_context_limit + " min") : "")
+                                }
+
                                 Item { Layout.fillWidth: true }
 
                                 PlasmaComponents3.Button {
@@ -1015,6 +1085,32 @@ Item {
                                         color: ((modelData.token_usage?.session_percentage ?? 0) > 80)
                                             ? Kirigami.Theme.negativeTextColor
                                             : (((modelData.token_usage?.session_percentage ?? 0) > 60) ? "#f97316" : Kirigami.Theme.positiveTextColor)
+                                    }
+                                }
+
+                                // Token Shield Velocity & Prediction
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Text {
+                                        text: "🛡️ Token Shield & Tempo:"
+                                        font.bold: true
+                                        font.pixelSize: 10
+                                        color: Kirigami.Theme.textColor
+                                    }
+                                    Text {
+                                        text: (modelData.burn_rate?.formatted_rate || "Klid (0 tok/min)")
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        color: modelData.burn_rate?.level_color || Kirigami.Theme.positiveTextColor
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Text {
+                                        text: modelData.burn_rate?.est_minutes_to_context_limit
+                                            ? ("Odhad do 1M limitu: ~" + modelData.burn_rate.est_minutes_to_context_limit + " min")
+                                            : "Tempo stabilní (limit v nedohlednu)"
+                                        font.pixelSize: 10
+                                        color: Kirigami.Theme.disabledTextColor
                                     }
                                 }
 

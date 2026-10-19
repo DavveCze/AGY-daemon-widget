@@ -6,6 +6,8 @@ pub struct NotificationTracker {
     pub previous_agent_busy: HashMap<u32, bool>,
     pub last_notified_step: HashMap<u32, i64>,
     pub previous_5hr_pct: Option<f32>,
+    pub last_burn_alert_time: HashMap<u32, std::time::Instant>,
+    pub last_quota_shield_alert_time: Option<std::time::Instant>,
 }
 
 impl NotificationTracker {
@@ -14,6 +16,8 @@ impl NotificationTracker {
             previous_agent_busy: HashMap::new(),
             last_notified_step: HashMap::new(),
             previous_5hr_pct: None,
+            last_burn_alert_time: HashMap::new(),
+            last_quota_shield_alert_time: None,
         }
     }
 }
@@ -215,11 +219,38 @@ pub fn check_and_send_notifications(
         }
 
         tracker.previous_agent_busy.insert(session.pid, is_busy);
+
+        // 1b. Token Shield: Detekce spike spotřeby tokenů (> 75k tok/min)
+        if session.burn_rate.is_spike {
+            let now = std::time::Instant::now();
+            let should_alert = tracker.last_burn_alert_time
+                .get(&session.pid)
+                .map(|&last_time| now.duration_since(last_time) > std::time::Duration::from_secs(300))
+                .unwrap_or(true);
+
+            if should_alert {
+                tracker.last_burn_alert_time.insert(session.pid, now);
+                let summary = format!("⚠️ Token Shield: Vysoké pálení [{}]", proj);
+                let body = format!(
+                    "Agent '{}' pálí tokeny enormní rychlostí ({:.1}k tok/min). Zkontrolujte případné zacyklení nebo načítání obřích logů.",
+                    session.agent_name,
+                    session.burn_rate.tokens_per_minute / 1000.0
+                );
+                send_desktop_notification(
+                    &summary,
+                    &body,
+                    Some(&session.conversation_id),
+                    Some(&session.workspace_path),
+                    state.settings.notification_sound,
+                );
+            }
+        }
     }
 
     // Retain only currently active PIDs
     tracker.previous_agent_busy.retain(|pid, _| current_pids.contains(pid));
     tracker.last_notified_step.retain(|pid, _| current_pids.contains(pid));
+    tracker.last_burn_alert_time.retain(|pid, _| current_pids.contains(pid));
 
     // 2. Check 5-hour quota reset
     // User condition: must have had < 95.0% remaining (<95% limit remaining) prior to reset
@@ -241,5 +272,30 @@ pub fn check_and_send_notifications(
         }
     }
     tracker.previous_5hr_pct = Some(current_5hr);
+
+    // 3. Token Shield: Varování při kriticky nízké kvótě a aktivním pálení
+    if current_5hr <= 10.0 && state.stats.burn_radar.total_tokens_per_minute > 5000.0 {
+        let now = std::time::Instant::now();
+        let should_alert = tracker.last_quota_shield_alert_time
+            .map(|last_time| now.duration_since(last_time) > std::time::Duration::from_secs(900))
+            .unwrap_or(true);
+
+        if should_alert {
+            tracker.last_quota_shield_alert_time = Some(now);
+            let summary = "🛡️ Token Shield: Kritická kapacita limitu".to_string();
+            let body = format!(
+                "Zbývá pouze {:.1} % z 5hodinové kvóty! Při současném tempu ({}) hrozí brzké zastavení agentů.",
+                current_5hr,
+                state.stats.burn_radar.radar_summary
+            );
+            send_desktop_notification(
+                &summary,
+                &body,
+                None,
+                None,
+                state.settings.notification_sound,
+            );
+        }
+    }
 }
 

@@ -165,7 +165,23 @@ AgentiCom integrates a dedicated kernel-secure Git Inspector module ([`daemon/sr
 
 ---
 
-## 7. KDE Plasma 6 Plasmoid & CRO Behavioral UX
+## 7. Predictive Token Shield & Burn Rate Radar Engine
+
+AgentiCom features an active **Token Velocity Engine** ([`daemon/src/burn_rate_tracker.rs`](../daemon/src/burn_rate_tracker.rs)) that continuously tracks consumption rates across a sliding temporal window (60 seconds):
+
+* **Real-Time Token Velocity ($\Delta \text{Tokens} / \Delta \text{Time}$):** Calculates tokens burned per minute both per-session and globally across all active providers.
+* **Context Growth Tracking & Limit Forecasting:** Measures how fast the model's active context window expands ($\Delta \text{Context} / \Delta \text{Time}$) and calculates a live estimate of minutes remaining before hitting the 1,000,000 token limit.
+* **Proactive Spike Detection & Token Shield:** Automatically detects catastrophic consumption loops or runaway context ingestion (> 75,000 tokens/min), sending rate-limited desktop notifications before limits are wiped out.
+* **5-Hour Quota Depletion Radar:** Synthesizes multi-bucket provider quotas with global burn velocity to display actionable forecasts (e.g. `14.7k tok/min (↗ Rostoucí) • Odhad 5h limitu: ~86 min`).
+* **Visual Triad Integration:** Color-codes burn intensity across UI elements:
+  - 🟢 **Low / Stable:** `< 10k tok/min` (`#10b981`)
+  - 🟡 **Medium:** `10k – 35k tok/min` (`#f59e0b`)
+  - 🟠 **High:** `35k – 75k tok/min` (`#ea580c`)
+  - 🔴 **Spike / Alert:** `≥ 75k tok/min` (`#ef4444`)
+
+---
+
+## 8. KDE Plasma 6 Plasmoid & CRO Behavioral UX
 
 The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
@@ -184,14 +200,19 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 ---
 
-## 8. Comprehensive Verification & Testing Suite (40 Tests)
+## 9. Comprehensive Verification & Testing Suite (45 Tests)
 
 The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
 
 ```
-running 40 tests
+running 45 tests
 test test_all_available_models_and_agents_registry ... ok
+test test_burn_rate_tracker_context_limit_estimation ... ok
+test test_burn_rate_tracker_global_radar_and_trends ... ok
 test test_agenticom_config_defaults_and_serialization ... ok
+test test_burn_rate_tracker_pruning_and_window_expiry ... ok
+test test_burn_rate_tracker_idle_and_steady_consumption ... ok
+test test_burn_rate_tracker_spike_detection ... ok
 test test_codex_provider_heuristics_and_scan ... ok
 test test_codex_token_usage_parsing ... ok
 test test_backward_compatible_deserialization_defaults ... ok

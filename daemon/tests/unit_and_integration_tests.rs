@@ -27,6 +27,7 @@ fn test_state_serialization_roundtrip() {
             outsource_usage_percent: 42.0,
             outsource_reset_text: "resets in 4d 10h".to_string(),
             real_quota: agy_daemon::quota::RealQuotaData::default(),
+            burn_radar: Default::default(),
         },
         active_sessions: vec![ActiveSession {
             pid: 1234,
@@ -59,6 +60,7 @@ fn test_state_serialization_roundtrip() {
             provider: "antigravity".to_string(),
             provider_badge_color: "#3b82f6".to_string(),
             git_status: Default::default(),
+            burn_rate: Default::default(),
         }],
         recent_conversations: vec![ConversationItem {
             conversation_id: "conv-abc-123".to_string(),
@@ -832,6 +834,7 @@ fn test_security_kill_session_unauthorized_uid_rejected() {
         provider: "codex".to_string(),
         provider_badge_color: "".to_string(),
         git_status: Default::default(),
+        burn_rate: Default::default(),
     }];
 
     assert_eq!(verify_killable_ai_session(1, &dummy), Err(KillSecurityError::InvalidPid));
@@ -1020,6 +1023,125 @@ fn test_git_inspector_security_reject_invalid_paths() {
     assert!(get_git_diff("/nonexistent/path/999", 1024).is_err());
     assert!(rollback_git_changes("/nonexistent/path/999", false).is_err());
 }
+
+#[test]
+fn test_burn_rate_tracker_idle_and_steady_consumption() {
+    use agy_daemon::burn_rate_tracker::BurnRateTracker;
+    use std::time::{Duration, Instant};
+
+    let mut tracker = BurnRateTracker::new();
+    let t0 = Instant::now();
+
+    // First sample - not enough data yet
+    let r1 = tracker.record_and_evaluate_session(1001, 10_000, 5_000, 1_000_000, t0);
+    assert_eq!(r1.burn_level, "idle");
+    assert_eq!(r1.tokens_per_minute, 0.0);
+
+    // Second sample 10s later with +1,000 tokens (100 tok/s = 6,000 tok/min => "low")
+    let t1 = t0 + Duration::from_secs(10);
+    let r2 = tracker.record_and_evaluate_session(1001, 11_000, 5_500, 1_000_000, t1);
+    assert_eq!(r2.burn_level, "low");
+    assert_eq!(r2.level_color, "#10b981");
+    assert!(!r2.is_spike);
+    assert!((r2.tokens_per_minute - 6000.0).abs() < 50.0);
+    assert_eq!(r2.formatted_rate, "6.0k tok/min");
+}
+
+#[test]
+fn test_burn_rate_tracker_spike_detection() {
+    use agy_daemon::burn_rate_tracker::BurnRateTracker;
+    use std::time::{Duration, Instant};
+
+    let mut tracker = BurnRateTracker::new();
+    let t0 = Instant::now();
+
+    let _ = tracker.record_and_evaluate_session(1002, 100_000, 50_000, 1_000_000, t0);
+
+    // After 60 seconds, agent burnt 120,000 tokens (120k / min => "spike")
+    let t1 = t0 + Duration::from_secs(60);
+    let r2 = tracker.record_and_evaluate_session(1002, 220_000, 150_000, 1_000_000, t1);
+
+    assert_eq!(r2.burn_level, "spike");
+    assert_eq!(r2.level_color, "#ef4444");
+    assert!(r2.is_spike);
+    assert!((r2.tokens_per_minute - 120_000.0).abs() < 100.0);
+}
+
+#[test]
+fn test_burn_rate_tracker_context_limit_estimation() {
+    use agy_daemon::burn_rate_tracker::BurnRateTracker;
+    use std::time::{Duration, Instant};
+
+    let mut tracker = BurnRateTracker::new();
+    let t0 = Instant::now();
+
+    // Context at 800k out of 1M limit
+    let _ = tracker.record_and_evaluate_session(1003, 500_000, 800_000, 1_000_000, t0);
+
+    // 30 seconds later, context grew by 50,000 tokens (rate = 100k tok/min)
+    // Remaining = 1M - 850k = 150k tokens => ~150k / 100k = 2 minutes remaining
+    let t1 = t0 + Duration::from_secs(30);
+    let r2 = tracker.record_and_evaluate_session(1003, 550_000, 850_000, 1_000_000, t1);
+
+    assert_eq!(r2.est_minutes_to_context_limit, Some(2));
+}
+
+#[test]
+fn test_burn_rate_tracker_pruning_and_window_expiry() {
+    use agy_daemon::burn_rate_tracker::BurnRateTracker;
+    use std::time::{Duration, Instant};
+
+    let mut tracker = BurnRateTracker::with_window(30);
+    let t0 = Instant::now();
+
+    let _ = tracker.record_and_evaluate_session(2001, 1000, 500, 1_000_000, t0);
+    let _ = tracker.record_and_evaluate_session(2002, 1000, 500, 1_000_000, t0);
+
+    // Prune session 2002
+    tracker.prune_inactive_sessions(&[2001]);
+
+    // Session 2001 advances past 30s window
+    let t1 = t0 + Duration::from_secs(35);
+    let r = tracker.record_and_evaluate_session(2001, 2000, 1000, 1_000_000, t1);
+    // Old sample expired, so only 1 sample exists => returns default
+    assert_eq!(r.burn_level, "idle");
+}
+
+#[test]
+fn test_burn_rate_tracker_global_radar_and_trends() {
+    use agy_daemon::burn_rate_tracker::{BurnRateTracker, SessionBurnRate};
+    use std::time::Instant;
+
+    let mut tracker = BurnRateTracker::new();
+    let now = Instant::now();
+
+    let s1 = SessionBurnRate {
+        tokens_per_minute: 12_000.0,
+        context_growth_per_minute: 2_000.0,
+        burn_level: "medium".to_string(),
+        level_color: "#f59e0b".to_string(),
+        est_minutes_to_context_limit: None,
+        is_spike: false,
+        formatted_rate: "12.0k tok/min".to_string(),
+    };
+    let s2 = SessionBurnRate {
+        tokens_per_minute: 8_000.0,
+        context_growth_per_minute: 1_000.0,
+        burn_level: "low".to_string(),
+        level_color: "#10b981".to_string(),
+        est_minutes_to_context_limit: None,
+        is_spike: false,
+        formatted_rate: "8.0k tok/min".to_string(),
+    };
+
+    // Total = 20,000 tok/min => "medium"
+    let radar = tracker.compute_global_radar(&[s1, s2], 50.0, now);
+    assert_eq!(radar.burn_level, "medium");
+    assert_eq!(radar.level_color, "#f59e0b");
+    assert!((radar.total_tokens_per_minute - 20_000.0).abs() < 10.0);
+    assert!(radar.est_minutes_to_five_hour_limit.is_some());
+}
+
 
 
 

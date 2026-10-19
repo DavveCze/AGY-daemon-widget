@@ -1,3 +1,4 @@
+pub mod burn_rate_tracker;
 pub mod config;
 pub mod db_reader;
 pub mod dbus_service;

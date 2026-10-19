@@ -103,12 +103,35 @@ fn collect_state(
     settings_path: &Path,
     cached_skills: &[agy_daemon::state::SkillItem],
     quota: &agy_daemon::quota::RealQuotaData,
+    burn_tracker: &mut agy_daemon::burn_rate_tracker::BurnRateTracker,
 ) -> AgyState {
     let settings = read_settings(settings_path);
     let mut active_sessions = registry.scan_all_sessions();
+    let now = std::time::Instant::now();
+    let mut session_rates = Vec::new();
+
     for session in &mut active_sessions {
         session.git_status = agy_daemon::git_inspector::inspect_git_status(&session.workspace_path);
+        let rate = burn_tracker.record_and_evaluate_session(
+            session.pid,
+            session.token_usage.total_tokens,
+            session.token_usage.current_context_tokens,
+            session.token_usage.context_limit,
+            now,
+        );
+        session.burn_rate = rate.clone();
+        session_rates.push(rate);
     }
+
+    let active_pids: Vec<u32> = active_sessions.iter().map(|s| s.pid).collect();
+    burn_tracker.prune_inactive_sessions(&active_pids);
+
+    let burn_radar = burn_tracker.compute_global_radar(
+        &session_rates,
+        quota.gemini_five_hour.percentage,
+        now,
+    );
+
     let recent = registry.get_all_recent_conversations(15);
     let active_providers = registry.active_provider_ids();
 
@@ -140,6 +163,7 @@ fn collect_state(
         outsource_usage_percent: quota.outsource_weekly.percentage,
         outsource_reset_text: quota.outsource_weekly.refreshes_in_str.clone(),
         real_quota: quota.clone(),
+        burn_radar,
     };
 
     AgyState {
@@ -230,11 +254,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
             let quota = agy_daemon::quota::fetch_quota_sync(&log_dir);
             let skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
+            let mut burn_tracker = agy_daemon::burn_rate_tracker::BurnRateTracker::new();
             let st = collect_state(
                 &registry,
                 &settings_path,
                 &skills,
                 &quota,
+                &mut burn_tracker,
             );
             println!("{}", serde_json::to_string_pretty(&st)?);
             return Ok(());
@@ -355,12 +381,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cached_skills = scan_skills(&skills_dir, &builtin_skills_dir, &plugins_dir);
     let mut last_written_json = String::new();
+    let mut burn_tracker = agy_daemon::burn_rate_tracker::BurnRateTracker::new();
 
     let initial_state = collect_state(
         &registry,
         &settings_path,
         &cached_skills,
         &initial_quota,
+        &mut burn_tracker,
     );
     write_shared_memory_state(&initial_state, &mut last_written_json);
     unsafe { libc::malloc_trim(0); }
@@ -446,6 +474,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &settings_path,
                     &cached_skills,
                     &current_quota,
+                    &mut burn_tracker,
                 );
                 write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(
@@ -472,6 +501,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &settings_path,
                     &cached_skills,
                     &current_quota,
+                    &mut burn_tracker,
                 );
                 write_shared_memory_state(&current_state, &mut last_written_json);
                 agy_daemon::notifications::check_and_send_notifications(

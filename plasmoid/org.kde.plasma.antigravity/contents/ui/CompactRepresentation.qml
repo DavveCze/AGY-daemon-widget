@@ -28,12 +28,13 @@ Item {
         PlasmaComponents3.ToolTip.visible: containsMouse
         PlasmaComponents3.ToolTip.text: {
             if (!root.isDaemonActive) {
-                return "AgentiCom Monitor\nDaemon starting...";
+                return "AgentiCom Monitor\nNačítám démona...";
             }
             if (compactRoot.activeCount === 0) {
-                return "AgentiCom Monitor\nNo active CLI sessions\nModel: " + (root.agyState?.settings?.model ?? "Default");
+                return "AgentiCom Monitor\nŽádná aktivní CLI sezení\nModel: " + (root.agyState?.settings?.model ?? "Default");
             }
-            return "AgentiCom Monitor\nActive sessions: " + compactRoot.activeCount + " (" + compactRoot.busyCount + " working)\nRAM: " + (root.agyState?.stats?.total_memory_mb ?? 0) + " MB\nModel: " + (root.agyState?.settings?.model ?? "Default");
+            var rateStr = root.agyState?.stats?.burn_radar?.radar_summary ? ("\nToken Radar: " + root.agyState.stats.burn_radar.radar_summary) : "";
+            return "AgentiCom Monitor\nAktivní sezení: " + compactRoot.activeCount + " (" + compactRoot.busyCount + " pracuje)\nRAM: " + (root.agyState?.stats?.total_memory_mb ?? 0) + " MB" + rateStr + "\nModel: " + (root.agyState?.settings?.model ?? "Default");
         }
     }
 

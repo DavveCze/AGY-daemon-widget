@@ -37,9 +37,15 @@ Under the **"Active Sessions"** tab, each running task is displayed with a clean
 
 ### Inspecting Changes & 1-Click Rollback
 AgentiCom continuously monitors the git status of your active workspaces:
-* **Git Status Badge:** Shows the active branch (e.g. `main`) and the number of uncommitted modifications (`3 changes (+42/-10)`).
+* **Git Status Badge:** Shows the active branch (e.g. `feat/predictive-token-shield-burn-rate`) and the number of uncommitted modifications (`3 changes (+42/-10)`).
 * **View Diff (`Diff` button):** Click to expand an inline, monospace preview of all modifications made by the agent, or view it in a terminal.
 * **1-Click Rollback (`Rollback` button):** If the agent makes a mistake, click **"Rollback"** to bring up the safety confirmation bar. You can choose whether to keep or remove new untracked files, then confirm to instantly restore your workspace to its clean git commit state.
+
+### Predictive Token Shield & Burn Rate Radar
+AgentiCom continuously computes the velocity at which your AI agents consume tokens:
+* **Token Radar (Header):** Displays real-time burn velocity across all active agents (e.g. `⚡ 14.7k tok/min (↗ Accelerating)`). Hover to view estimated time remaining before the 5-hour quota reset.
+* **Session Burn Rate Badge:** Each active card displays its specific consumption rate (e.g. `🔥 14.7k tok/min` or `⚡ Stable`) and estimated minutes remaining before the 1M context window fills up.
+* **Proactive Token Shield Alerts:** If an agent encounters a runaway loop or excessively consumes tokens (> 75,000 tokens/min), AgentiCom sends an urgent desktop notification so you can intervene before exhausting your quota.
 
 ### Resuming an Existing Session
 If you accidentally close a terminal window, your agent continues running safely in the background.
