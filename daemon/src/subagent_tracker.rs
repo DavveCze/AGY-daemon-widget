@@ -106,6 +106,15 @@ pub fn scan_subagents_for_conversation(
             .and_then(|v| v.as_str())
             .unwrap_or("SUBAGENT_STATE_ALIVE");
 
+        let s_raw_upper = raw_state.to_uppercase();
+        if s_raw_upper.contains("KILLED")
+            || s_raw_upper.contains("DEAD")
+            || s_raw_upper.contains("CANCEL")
+            || s_raw_upper.contains("TERMINAT")
+        {
+            continue;
+        }
+
         // Inspect subagent's transcript to determine real-time state (DONE/IDLE vs RUNNING)
         let mut resolved_state = raw_state.to_string();
         let transcript_path = brain_dir
@@ -268,7 +277,7 @@ pub fn build_team_hierarchy(
 
     let active_members = subagents.iter().filter(|s| s.is_active).count();
     let total_members = subagents.len();
-    let has_subagents = total_members > 0 || !child_processes.is_empty();
+    let has_subagents = active_members > 0 || !child_processes.is_empty();
 
     TeamHierarchy {
         has_subagents,

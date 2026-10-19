@@ -1118,6 +1118,8 @@ Item {
                                     icon.name: "process-stop"
                                     text: "Zastavit tým"
                                     Layout.preferredHeight: 24
+                                    visible: Boolean(modelData.team && modelData.team.active_members > 0)
+                                    enabled: Boolean(modelData.team && modelData.team.active_members > 0)
                                     PlasmaComponents3.ToolTip.text: "Ukončit hlavní proces i všechny jeho běžící subagenty/pracovníky"
                                     onClicked: {
                                         if (fullRoot.activeKillTeamPid === modelData.pid) {
@@ -1193,7 +1195,7 @@ Item {
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Text {
-                                            text: "Hierarchie běžících subagentů (Swarm):"
+                                            text: (modelData.team && modelData.team.active_members > 0) ? "Hierarchie aktivních subagentů (Swarm):" : "Předchozí subagenti:"
                                             font.bold: true
                                             font.pixelSize: 10
                                             color: Kirigami.Theme.disabledTextColor

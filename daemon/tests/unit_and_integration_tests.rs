@@ -1441,6 +1441,86 @@ fn test_burn_rate_float_stabilization_and_rounding() {
     assert!(((radar.total_tokens_per_minute * 10.0).fract()).abs() < 1e-4);
 }
 
+#[test]
+fn test_subagent_tracker_filters_killed_and_inactive_team_visibility() {
+    use agy_daemon::subagent_tracker::{build_team_hierarchy, scan_subagents_for_conversation};
+    let temp = tempdir().unwrap();
+    let brain_dir = temp.path();
+    let conv_id = "test-conv-killed-filtering";
+
+    let subagents_dir = brain_dir.join(conv_id).join(".system_generated").join("subagents");
+    fs::create_dir_all(&subagents_dir).unwrap();
+
+    // 1. A killed subagent
+    let killed_json = r#"{
+        "conversationId": "sub-killed-1",
+        "subagentDescriptor": {
+            "typeName": "cro-psychologist",
+            "role": "CRO Psychologist"
+        },
+        "state": "SUBAGENT_STATE_KILLED"
+    }"#;
+    fs::write(subagents_dir.join("sub-killed-1.json"), killed_json).unwrap();
+
+    // 2. A cancelled subagent
+    let cancelled_json = r#"{
+        "conversationId": "sub-cancelled-2",
+        "subagentDescriptor": {
+            "typeName": "system-architect",
+            "role": "System Architect"
+        },
+        "state": "CANCELLED"
+    }"#;
+    fs::write(subagents_dir.join("sub-cancelled-2.json"), cancelled_json).unwrap();
+
+    // With only killed/cancelled subagents, scan returns empty
+    let items = scan_subagents_for_conversation(brain_dir, conv_id);
+    assert_eq!(items.len(), 0);
+
+    let team = build_team_hierarchy(brain_dir, conv_id, 999999, 100.0);
+    assert_eq!(team.total_members, 0);
+    assert_eq!(team.active_members, 0);
+    assert!(!team.has_subagents);
+
+    // 3. Add a completed (DONE) subagent
+    let done_json = r#"{
+        "conversationId": "sub-done-3",
+        "subagentDescriptor": {
+            "typeName": "research",
+            "role": "Code Researcher"
+        },
+        "state": "SUBAGENT_STATE_DONE"
+    }"#;
+    fs::write(subagents_dir.join("sub-done-3.json"), done_json).unwrap();
+
+    let items_after_done = scan_subagents_for_conversation(brain_dir, conv_id);
+    assert_eq!(items_after_done.len(), 1);
+    assert_eq!(items_after_done[0].state_label, "Dokončeno");
+    assert!(!items_after_done[0].is_active);
+
+    // Since active_members == 0 and child_processes is empty, has_subagents must be false
+    let team_done = build_team_hierarchy(brain_dir, conv_id, 999999, 100.0);
+    assert_eq!(team_done.total_members, 1);
+    assert_eq!(team_done.active_members, 0);
+    assert!(!team_done.has_subagents);
+
+    // 4. Add an active running subagent
+    let active_json = r#"{
+        "conversationId": "sub-active-4",
+        "subagentDescriptor": {
+            "typeName": "dba-guardian",
+            "role": "DBA Guardian"
+        },
+        "state": "SUBAGENT_STATE_ALIVE"
+    }"#;
+    fs::write(subagents_dir.join("sub-active-4.json"), active_json).unwrap();
+
+    let team_active = build_team_hierarchy(brain_dir, conv_id, 999999, 100.0);
+    assert_eq!(team_active.total_members, 2);
+    assert_eq!(team_active.active_members, 1);
+    assert!(team_active.has_subagents);
+}
+
 
 
 
