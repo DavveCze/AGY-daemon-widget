@@ -54,6 +54,124 @@ Item {
     property var expandedSwarmPids: ({})
     property var activeKillTeamPid: 0
 
+    // Granular UI Reconciliation & Scroll Preservation properties
+    property var filteredActiveSessions: []
+    property var filteredSkillsList: []
+    property var historyConversationsList: []
+    property var sessionDraftPrompts: ({})
+    property real savedSessionsScrollY: 0
+    property real savedSkillsScrollY: 0
+    property real savedHistoryScrollY: 0
+    property real savedDiffScrollY: 0
+    property real savedDiffScrollX: 0
+    property bool hasPendingSessionsSync: false
+    property bool hasPendingSkillsSync: false
+    property bool hasPendingHistorySync: false
+
+    function syncFilteredSessions() {
+        var filtered = activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter);
+        
+        // Deep equality check to eliminate needless model resets
+        if (JSON.stringify(filtered) === JSON.stringify(filteredActiveSessions)) {
+            return;
+        }
+
+        // If user is actively interacting (scrolling/dragging/flicking), defer model update
+        if (activeSessionsListView && (activeSessionsListView.moving || activeSessionsListView.dragging || activeSessionsListView.flicking)) {
+            hasPendingSessionsSync = true;
+            return;
+        }
+
+        hasPendingSessionsSync = false;
+        var prevY = activeSessionsListView ? activeSessionsListView.contentY : 0;
+        filteredActiveSessions = filtered;
+
+        if (activeSessionsListView && prevY > 0) {
+            activeSessionsListView.contentY = Math.min(prevY, Math.max(0, activeSessionsListView.contentHeight - activeSessionsListView.height));
+            Qt.callLater(() => {
+                if (activeSessionsListView && !activeSessionsListView.moving && prevY > 0) {
+                    activeSessionsListView.contentY = Math.min(prevY, Math.max(0, activeSessionsListView.contentHeight - activeSessionsListView.height));
+                }
+            });
+        }
+    }
+
+    function syncHistoryConversations() {
+        if (JSON.stringify(recentConversations) === JSON.stringify(historyConversationsList)) {
+            return;
+        }
+
+        if (historyListView && (historyListView.moving || historyListView.dragging || historyListView.flicking)) {
+            hasPendingHistorySync = true;
+            return;
+        }
+
+        hasPendingHistorySync = false;
+        var prevY = historyListView ? historyListView.contentY : 0;
+        historyConversationsList = recentConversations;
+
+        if (historyListView && prevY > 0) {
+            historyListView.contentY = Math.min(prevY, Math.max(0, historyListView.contentHeight - historyListView.height));
+            Qt.callLater(() => {
+                if (historyListView && !historyListView.moving && prevY > 0) {
+                    historyListView.contentY = Math.min(prevY, Math.max(0, historyListView.contentHeight - historyListView.height));
+                }
+            });
+        }
+    }
+
+    function syncFilteredSkills() {
+        var q = (typeof skillSearch !== "undefined" && skillSearch) ? skillSearch.text.toLowerCase().trim() : "";
+        var filtered = skillsList.filter(s => {
+            var cat = fullRoot.selectedSkillCategory;
+            if (cat === "plugins" && s.skill_type !== "plugin") return false;
+            if (cat === "database" && (s.plugin_name || "").indexOf("database") === -1) return false;
+            if (cat === "ux" && (s.plugin_name || "").indexOf("ux") === -1) return false;
+            if (cat === "seo" && (s.plugin_name || "").indexOf("seo") === -1) return false;
+            if (cat === "architect" && (s.plugin_name || "").indexOf("architect") === -1) return false;
+            if (cat === "user" && s.skill_type !== "user" && s.skill_type !== "builtin") return false;
+            if (q === "") return true;
+            return (s.name && s.name.toLowerCase().indexOf(q) !== -1)
+                || (s.description && s.description.toLowerCase().indexOf(q) !== -1)
+                || (s.plugin_name && s.plugin_name.toLowerCase().indexOf(q) !== -1)
+                || (s.command && s.command.toLowerCase().indexOf(q) !== -1);
+        });
+
+        if (JSON.stringify(filtered) === JSON.stringify(filteredSkillsList)) {
+            return;
+        }
+
+        if (skillsListView && (skillsListView.moving || skillsListView.dragging || skillsListView.flicking)) {
+            hasPendingSkillsSync = true;
+            return;
+        }
+
+        hasPendingSkillsSync = false;
+        var prevY = skillsListView ? skillsListView.contentY : 0;
+        filteredSkillsList = filtered;
+
+        if (skillsListView && prevY > 0) {
+            skillsListView.contentY = Math.min(prevY, Math.max(0, skillsListView.contentHeight - skillsListView.height));
+            Qt.callLater(() => {
+                if (skillsListView && !skillsListView.moving && prevY > 0) {
+                    skillsListView.contentY = Math.min(prevY, Math.max(0, skillsListView.contentHeight - skillsListView.height));
+                }
+            });
+        }
+    }
+
+    onActiveSessionsChanged: syncFilteredSessions()
+    onSelectedProviderFilterChanged: syncFilteredSessions()
+    onRecentConversationsChanged: syncHistoryConversations()
+    onSkillsListChanged: syncFilteredSkills()
+    onSelectedSkillCategoryChanged: syncFilteredSkills()
+
+    Component.onCompleted: {
+        syncFilteredSessions();
+        syncHistoryConversations();
+        syncFilteredSkills();
+    }
+
     function isSwarmExpanded(pid) {
         return !!expandedSwarmPids[pid];
     }
@@ -71,8 +189,12 @@ Item {
     function toggleDiffView(pid, workspace) {
         if (diffOpenedPid === pid) {
             diffOpenedPid = 0;
+            savedDiffScrollY = 0;
+            savedDiffScrollX = 0;
         } else {
             diffOpenedPid = pid;
+            savedDiffScrollY = 0;
+            savedDiffScrollX = 0;
             root.viewGitDiff(workspace);
         }
     }
@@ -591,7 +713,7 @@ Item {
                 // Empty state - centered in parent
                 ColumnLayout {
                     anchors.centerIn: parent
-                    visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length === 0
+                    visible: fullRoot.filteredActiveSessions.length === 0
                     spacing: Kirigami.Units.largeSpacing
 
                     Kirigami.Icon {
@@ -623,15 +745,34 @@ Item {
 
                 // Active sessions list
                 ListView {
+                    id: activeSessionsListView
                     anchors.top: filterPillsRow.visible ? filterPillsRow.bottom : parent.top
                     anchors.topMargin: filterPillsRow.visible ? Kirigami.Units.smallSpacing : 0
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    visible: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter).length > 0
+                    visible: fullRoot.filteredActiveSessions.length > 0
                     clip: true
                     spacing: Kirigami.Units.smallSpacing
-                    model: activeSessions.filter(s => fullRoot.selectedProviderFilter === "all" || (s.provider || "antigravity") === fullRoot.selectedProviderFilter)
+                    model: fullRoot.filteredActiveSessions
+                    reuseItems: true
+
+                    onMovingChanged: {
+                        if (!moving && !dragging && !flicking) {
+                            savedSessionsScrollY = contentY;
+                            if (fullRoot.hasPendingSessionsSync) {
+                                fullRoot.syncFilteredSessions();
+                            }
+                        }
+                    }
+                    onFlickingChanged: {
+                        if (!moving && !dragging && !flicking) {
+                            savedSessionsScrollY = contentY;
+                            if (fullRoot.hasPendingSessionsSync) {
+                                fullRoot.syncFilteredSessions();
+                            }
+                        }
+                    }
 
                     delegate: Rectangle {
                         id: sessionDelegate
@@ -1207,9 +1348,20 @@ Item {
                                     Layout.preferredHeight: 26
                                     font.pixelSize: 10
                                     placeholderText: "Napsat instrukci pro toto sezení..."
+                                    text: fullRoot.sessionDraftPrompts[modelData.pid] || ""
+                                    onTextChanged: {
+                                        if (text !== (fullRoot.sessionDraftPrompts[modelData.pid] || "")) {
+                                            var drafts = Object.assign({}, fullRoot.sessionDraftPrompts);
+                                            drafts[modelData.pid] = text;
+                                            fullRoot.sessionDraftPrompts = drafts;
+                                        }
+                                    }
                                     onAccepted: {
                                         if (text.trim().length > 0) {
                                             root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, text.trim(), modelData.provider);
+                                            var drafts = Object.assign({}, fullRoot.sessionDraftPrompts);
+                                            drafts[modelData.pid] = "";
+                                            fullRoot.sessionDraftPrompts = drafts;
                                             text = "";
                                         }
                                     }
@@ -1224,6 +1376,9 @@ Item {
                                     onClicked: {
                                         if (inlinePromptField.text.trim().length > 0) {
                                             root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, inlinePromptField.text.trim(), modelData.provider);
+                                            var drafts = Object.assign({}, fullRoot.sessionDraftPrompts);
+                                            drafts[modelData.pid] = "";
+                                            fullRoot.sessionDraftPrompts = drafts;
                                             inlinePromptField.text = "";
                                         }
                                     }
@@ -1284,6 +1439,8 @@ Item {
                                                 root.rollbackGitChanges(modelData.workspace_path, cleanUntrackedCheck.checked);
                                                 fullRoot.activeRollbackPid = 0;
                                                 fullRoot.diffOpenedPid = 0;
+                                                fullRoot.savedDiffScrollY = 0;
+                                                fullRoot.savedDiffScrollX = 0;
                                             }
                                         }
                                     }
@@ -1331,7 +1488,11 @@ Item {
                                             display: PlasmaComponents3.AbstractButton.IconOnly
                                             Layout.preferredHeight: 22
                                             Layout.preferredWidth: 22
-                                            onClicked: fullRoot.diffOpenedPid = 0
+                                            onClicked: {
+                                                fullRoot.diffOpenedPid = 0;
+                                                fullRoot.savedDiffScrollY = 0;
+                                                fullRoot.savedDiffScrollX = 0;
+                                            }
                                         }
                                     }
 
@@ -1341,6 +1502,7 @@ Item {
                                         clip: true
 
                                         QQC2.TextArea {
+                                            id: diffTextArea
                                             readOnly: true
                                             text: root.activeDiffContent
                                             font.family: "monospace"
@@ -1348,6 +1510,37 @@ Item {
                                             color: Kirigami.Theme.textColor
                                             background: null
                                             wrapMode: TextEdit.NoWrap
+
+                                            onContentYChanged: {
+                                                if (contentY > 0 || moving || dragging || flicking) {
+                                                    fullRoot.savedDiffScrollY = contentY;
+                                                }
+                                            }
+                                            onContentXChanged: {
+                                                if (contentX > 0 || moving || dragging || flicking) {
+                                                    fullRoot.savedDiffScrollX = contentX;
+                                                }
+                                            }
+
+                                            Component.onCompleted: {
+                                                if (fullRoot.savedDiffScrollY > 0) {
+                                                    contentY = fullRoot.savedDiffScrollY;
+                                                }
+                                                if (fullRoot.savedDiffScrollX > 0) {
+                                                    contentX = fullRoot.savedDiffScrollX;
+                                                }
+                                            }
+
+                                            onTextChanged: {
+                                                if (fullRoot.savedDiffScrollY > 0) {
+                                                    Qt.callLater(() => {
+                                                        if (diffTextArea) {
+                                                            diffTextArea.contentY = fullRoot.savedDiffScrollY;
+                                                            diffTextArea.contentX = fullRoot.savedDiffScrollX;
+                                                        }
+                                                    });
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1563,10 +1756,29 @@ Item {
                 Layout.fillHeight: true
 
                 ListView {
+                    id: historyListView
                     anchors.fill: parent
                     clip: true
                     spacing: 4
-                    model: recentConversations
+                    model: fullRoot.historyConversationsList
+                    reuseItems: true
+
+                    onMovingChanged: {
+                        if (!moving && !dragging && !flicking) {
+                            savedHistoryScrollY = contentY;
+                            if (fullRoot.hasPendingHistorySync) {
+                                fullRoot.syncHistoryConversations();
+                            }
+                        }
+                    }
+                    onFlickingChanged: {
+                        if (!moving && !dragging && !flicking) {
+                            savedHistoryScrollY = contentY;
+                            if (fullRoot.hasPendingHistorySync) {
+                                fullRoot.syncHistoryConversations();
+                            }
+                        }
+                    }
 
                     delegate: Rectangle {
                         required property var modelData
@@ -2106,6 +2318,7 @@ Item {
                         id: skillSearch
                         placeholderText: "Hledat skill, plugin, účel (např. docker, seo, audit)..."
                         Layout.fillWidth: true
+                        onTextChanged: fullRoot.syncFilteredSkills()
                     }
 
                     // 2. Category Filter Pills (Clean Flow without clipped scrollbars)
@@ -2163,21 +2376,25 @@ Item {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 6
-                        model: skillsList.filter(s => {
-                            var cat = fullRoot.selectedSkillCategory;
-                            if (cat === "plugins" && s.skill_type !== "plugin") return false;
-                            if (cat === "database" && (s.plugin_name || "").indexOf("database") === -1) return false;
-                            if (cat === "ux" && (s.plugin_name || "").indexOf("ux") === -1) return false;
-                            if (cat === "seo" && (s.plugin_name || "").indexOf("seo") === -1) return false;
-                            if (cat === "architect" && (s.plugin_name || "").indexOf("architect") === -1) return false;
-                            if (cat === "user" && s.skill_type !== "user" && s.skill_type !== "builtin") return false;
-                            if (skillSearch.text === "") return true;
-                            var q = skillSearch.text.toLowerCase().trim();
-                            return (s.name && s.name.toLowerCase().indexOf(q) !== -1)
-                                || (s.description && s.description.toLowerCase().indexOf(q) !== -1)
-                                || (s.plugin_name && s.plugin_name.toLowerCase().indexOf(q) !== -1)
-                                || (s.command && s.command.toLowerCase().indexOf(q) !== -1);
-                        })
+                        model: fullRoot.filteredSkillsList
+                        reuseItems: true
+
+                        onMovingChanged: {
+                            if (!moving && !dragging && !flicking) {
+                                savedSkillsScrollY = contentY;
+                                if (fullRoot.hasPendingSkillsSync) {
+                                    fullRoot.syncFilteredSkills();
+                                }
+                            }
+                        }
+                        onFlickingChanged: {
+                            if (!moving && !dragging && !flicking) {
+                                savedSkillsScrollY = contentY;
+                                if (fullRoot.hasPendingSkillsSync) {
+                                    fullRoot.syncFilteredSkills();
+                                }
+                            }
+                        }
 
                         delegate: Rectangle {
                             id: skillCard

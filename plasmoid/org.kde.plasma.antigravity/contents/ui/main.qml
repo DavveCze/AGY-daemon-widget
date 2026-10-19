@@ -42,6 +42,8 @@ PlasmoidItem {
     property string daemonBinPath: "agenticom-daemon"
     property bool isDaemonActive: false
 
+    property string lastRawStateJson: ""
+
     Plasma5Support.DataSource {
         id: stateReader
         engine: "executable"
@@ -51,8 +53,14 @@ PlasmoidItem {
             disconnectSource(sourceName);
             var stdout = data["stdout"];
             if (data["exit code"] === 0 && stdout && stdout.length > 0) {
+                if (stdout === root.lastRawStateJson) {
+                    root.isDaemonActive = true;
+                    return;
+                }
                 try {
-                    root.agyState = JSON.parse(stdout);
+                    var parsed = JSON.parse(stdout);
+                    root.lastRawStateJson = stdout;
+                    root.agyState = parsed;
                     root.isDaemonActive = true;
                     return;
                 } catch (e) {

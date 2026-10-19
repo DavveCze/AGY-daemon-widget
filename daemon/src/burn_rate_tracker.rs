@@ -140,8 +140,8 @@ impl BurnRateTracker {
         let token_delta = newest.total_tokens.saturating_sub(oldest.total_tokens);
         let context_delta = newest.context_tokens.saturating_sub(oldest.context_tokens);
 
-        let tokens_per_minute = (token_delta as f32 / elapsed_secs) * 60.0;
-        let context_growth_per_minute = (context_delta as f32 / elapsed_secs) * 60.0;
+        let tokens_per_minute = ((token_delta as f32 / elapsed_secs) * 60.0 * 10.0).round() / 10.0;
+        let context_growth_per_minute = ((context_delta as f32 / elapsed_secs) * 60.0 * 10.0).round() / 10.0;
 
         let (burn_level, level_color, is_spike) = if tokens_per_minute >= SPIKE_THRESHOLD_TOKENS_PER_MIN {
             ("spike", "#ef4444".to_string(), true) // Crimson red
@@ -189,7 +189,7 @@ impl BurnRateTracker {
         five_hour_quota_remaining_pct: f32,
         now: Instant,
     ) -> GlobalBurnRadar {
-        let total_rate: f32 = session_burn_rates.iter().map(|r| r.tokens_per_minute).sum();
+        let total_rate: f32 = ((session_burn_rates.iter().map(|r| r.tokens_per_minute).sum::<f32>()) * 10.0).round() / 10.0;
 
         // Uložit do historie globální rychlosti pro výpočet trendu
         self.historical_global_rates.push_back((now, total_rate));

@@ -1368,6 +1368,35 @@ fn test_subagent_tracker_security_kill_entire_team() {
     assert!(kill_entire_team(99999999).is_err());
 }
 
+#[test]
+fn test_burn_rate_float_stabilization_and_rounding() {
+    use agy_daemon::burn_rate_tracker::BurnRateTracker;
+    use std::time::{Duration, Instant};
+
+    let mut tracker = BurnRateTracker::new();
+    let t0 = Instant::now();
+
+    // First sample
+    let _ = tracker.record_and_evaluate_session(1001, 1000, 1000, 100000, t0);
+
+    // Second sample 10.003 seconds later (simulating microsecond elapsed variations)
+    let t1 = t0 + Duration::from_millis(10003);
+    let r1 = tracker.record_and_evaluate_session(1001, 2000, 1500, 100000, t1);
+
+    // Third sample 10.007 seconds later
+    let t2 = t0 + Duration::from_millis(20010);
+    let r2 = tracker.record_and_evaluate_session(1001, 3000, 2000, 100000, t2);
+
+    // Verify rate is rounded to 1 decimal place without endless float digits
+    assert!(((r1.tokens_per_minute * 10.0).fract()).abs() < 1e-4);
+    assert!(((r2.tokens_per_minute * 10.0).fract()).abs() < 1e-4);
+    assert!(((r1.context_growth_per_minute * 10.0).fract()).abs() < 1e-4);
+
+    // Check compute_global_radar total_rate rounding
+    let radar = tracker.compute_global_radar(&[r1, r2], 50.0, t2);
+    assert!(((radar.total_tokens_per_minute * 10.0).fract()).abs() < 1e-4);
+}
+
 
 
 
