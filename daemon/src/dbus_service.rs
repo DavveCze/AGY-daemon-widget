@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use zbus::interface;
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
 use crate::state::AgyState;
 
 pub struct AntigravityDbus {
@@ -42,14 +40,7 @@ impl AntigravityDbus {
             return false;
         }
 
-        let target_pid = Pid::from_raw(pid as i32);
-        // First try graceful SIGTERM
-        if kill(target_pid, Signal::SIGTERM).is_ok() {
-            true
-        } else {
-            // Fallback to SIGKILL
-            kill(target_pid, Signal::SIGKILL).is_ok()
-        }
+        crate::proc_monitor::kill_ai_process_robust(pid).is_ok()
     }
 
     async fn kill_team(&self, pid: u32) -> bool {

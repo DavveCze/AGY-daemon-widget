@@ -307,9 +307,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
         Commands::Kill { pid } => {
-            use nix::sys::signal::{kill, Signal};
-            use nix::unistd::Pid;
-
             let config_path = AgentiComConfig::get_default_config_path();
             let config = AgentiComConfig::load_or_default(&config_path);
             let registry = ProviderRegistry::new(&config, &presence_dir, &db_path, &brain_dir);
@@ -320,11 +317,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             }
 
-            let target_pid = Pid::from_raw(pid as i32);
-            if kill(target_pid, Signal::SIGTERM).is_ok() {
-                println!("Successfully signaled PID {}", pid);
-            } else {
-                eprintln!("Failed to signal PID {}", pid);
+            match agy_daemon::proc_monitor::kill_ai_process_robust(pid) {
+                Ok(_) => println!("Successfully terminated PID {}", pid),
+                Err(e) => eprintln!("Failed to terminate PID {}: {}", pid, e),
             }
             return Ok(());
         }

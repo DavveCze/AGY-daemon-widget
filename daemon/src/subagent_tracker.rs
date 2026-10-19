@@ -106,7 +106,34 @@ pub fn scan_subagents_for_conversation(
             .and_then(|v| v.as_str())
             .unwrap_or("SUBAGENT_STATE_ALIVE");
 
-        let (state_label, state_color, is_active) = map_subagent_state(raw_state);
+        // Inspect subagent's transcript to determine real-time state (DONE/IDLE vs RUNNING)
+        let mut resolved_state = raw_state.to_string();
+        let transcript_path = brain_dir
+            .join(&id)
+            .join(".system_generated")
+            .join("logs")
+            .join("transcript.jsonl");
+
+        if transcript_path.exists() {
+            if let Ok(transcript_content) = fs::read_to_string(&transcript_path) {
+                if let Some(last_line) = transcript_content.lines().rev().find(|l| !l.trim().is_empty()) {
+                    if let Ok(last_step) = serde_json::from_str::<Value>(last_line) {
+                        let step_type = last_step.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                        let status = last_step.get("status").and_then(|v| v.as_str()).unwrap_or("");
+
+                        if status == "DONE" && (step_type == "PLANNER_RESPONSE" || step_type == "GENERIC") {
+                            resolved_state = "DONE".to_string();
+                        } else if status == "ERROR" {
+                            resolved_state = "ERROR".to_string();
+                        } else if step_type == "USER_INPUT" || status == "RUNNING" {
+                            resolved_state = "RUNNING".to_string();
+                        }
+                    }
+                }
+            }
+        }
+
+        let (state_label, state_color, is_active) = map_subagent_state(&resolved_state);
         let icon_name = get_subagent_icon(&type_name).to_string();
 
         items.push(SubagentItem {
@@ -114,7 +141,7 @@ pub fn scan_subagents_for_conversation(
             name: role.clone(),
             role,
             type_name,
-            state: raw_state.to_string(),
+            state: resolved_state,
             state_label: state_label.to_string(),
             state_color: state_color.to_string(),
             is_active,
@@ -276,14 +303,22 @@ pub fn kill_entire_team(parent_pid: u32) -> Result<String, String> {
     let descendants = find_descendant_pids(parent_pid);
     let child_count = descendants.len();
 
-    // 1. Terminate all child descendants first
+    // 1. Terminate all child descendants first with SIGTERM+SIGCONT, then SIGKILL
     for (child_pid, _, _) in &descendants {
-        let _ = kill(Pid::from_raw(*child_pid as i32), Signal::SIGTERM);
+        let c_pid = Pid::from_raw(*child_pid as i32);
+        let _ = kill(c_pid, Signal::SIGTERM);
+        let _ = kill(c_pid, Signal::SIGCONT);
+        let _ = kill(c_pid, Signal::SIGKILL);
     }
 
-    // 2. Terminate the main root session process
-    if let Err(e) = kill(Pid::from_raw(parent_pid as i32), Signal::SIGTERM) {
-        return Err(format!("Chyba při ukončování PID {}: {}", parent_pid, e));
+    // 2. Terminate the main root session process with SIGTERM+SIGCONT, escalating to SIGKILL
+    let target_pid = Pid::from_raw(parent_pid as i32);
+    let _ = kill(target_pid, Signal::SIGTERM);
+    let _ = kill(target_pid, Signal::SIGCONT);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    if Path::new(&proc_path).exists() {
+        let _ = kill(target_pid, Signal::SIGKILL);
+        let _ = kill(target_pid, Signal::SIGCONT);
     }
 
     Ok(format!(

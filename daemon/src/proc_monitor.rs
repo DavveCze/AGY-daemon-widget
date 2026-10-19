@@ -244,7 +244,17 @@ pub fn verify_killable_ai_session(pid: u32, active_sessions: &[ActiveSession]) -
 
     let is_tracked = active_sessions.iter().any(|s| s.pid == pid);
     if !is_tracked {
-        return Err(KillSecurityError::UntrackedAiSession);
+        // Fallback: check if the process is an approved AI CLI executable owned by the user
+        let cmdline_path = format!("/proc/{}/cmdline", pid);
+        let is_ai = if let Ok(cmd_bytes) = fs::read(&cmdline_path) {
+            let cmd = String::from_utf8_lossy(&cmd_bytes);
+            cmd.contains("agy") || cmd.contains("claude") || cmd.contains("codex")
+        } else {
+            false
+        };
+        if !is_ai {
+            return Err(KillSecurityError::UntrackedAiSession);
+        }
     }
 
     let status_path = format!("/proc/{}/status", pid);
@@ -276,6 +286,53 @@ pub fn verify_killable_ai_session(pid: u32, active_sessions: &[ActiveSession]) -
         return Err(KillSecurityError::ProcessNotFound);
     }
 
+    Ok(())
+}
+
+/// Robustly terminates an AI process with SIGTERM + SIGCONT, escalating to SIGKILL + SIGCONT if needed.
+pub fn kill_ai_process_robust(pid: u32) -> Result<(), String> {
+    use nix::sys::signal::{kill, Signal};
+    use nix::unistd::Pid;
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    if pid <= 1 {
+        return Err(format!("Odmítnuto: PID {} je chráněný proces.", pid));
+    }
+
+    let target_pid = Pid::from_raw(pid as i32);
+    let proc_path = format!("/proc/{}", pid);
+
+    if !Path::new(&proc_path).exists() {
+        return Ok(());
+    }
+
+    // 1. Send SIGTERM + SIGCONT for graceful exit (SIGCONT resumes stopped processes so they can process the signal)
+    let _ = kill(target_pid, Signal::SIGTERM);
+    let _ = kill(target_pid, Signal::SIGCONT);
+
+    // 2. Wait up to 200ms to see if process exits cleanly
+    for _ in 0..4 {
+        sleep(Duration::from_millis(50));
+        if !Path::new(&proc_path).exists() {
+            return Ok(());
+        }
+    }
+
+    // 3. Forceful termination: escalate to SIGKILL + SIGCONT
+    let _ = kill(target_pid, Signal::SIGKILL);
+    let _ = kill(target_pid, Signal::SIGCONT);
+
+    // 4. Also terminate any descendant child processes
+    let descendants = crate::subagent_tracker::find_descendant_pids(pid);
+    for (child_pid, _, _) in descendants {
+        let c_pid = Pid::from_raw(child_pid as i32);
+        let _ = kill(c_pid, Signal::SIGTERM);
+        let _ = kill(c_pid, Signal::SIGKILL);
+        let _ = kill(c_pid, Signal::SIGCONT);
+    }
+
+    sleep(Duration::from_millis(50));
     Ok(())
 }
 

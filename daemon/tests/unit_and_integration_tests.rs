@@ -1357,6 +1357,38 @@ fn test_subagent_tracker_scan_subagents_directory() {
 }
 
 #[test]
+fn test_subagent_tracker_realtime_transcript_resolution() {
+    use agy_daemon::subagent_tracker::scan_subagents_for_conversation;
+    let temp = tempdir().unwrap();
+    let brain_dir = temp.path();
+    let conv_id = "test-conv-realtime";
+
+    let subagents_dir = brain_dir.join(conv_id).join(".system_generated").join("subagents");
+    fs::create_dir_all(&subagents_dir).unwrap();
+
+    // sub1 has static state "SUBAGENT_STATE_ALIVE", but its transcript says DONE
+    let sub1_json = r#"{
+        "conversationId": "sub-worker-1",
+        "subagentDescriptor": {
+            "typeName": "system-architect",
+            "role": "System Architect"
+        },
+        "state": "SUBAGENT_STATE_ALIVE"
+    }"#;
+    fs::write(subagents_dir.join("sub-worker-1.json"), sub1_json).unwrap();
+
+    let sub1_logs = brain_dir.join("sub-worker-1").join(".system_generated").join("logs");
+    fs::create_dir_all(&sub1_logs).unwrap();
+    let line = r#"{"step_index":5,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE"}"#;
+    fs::write(sub1_logs.join("transcript.jsonl"), format!("{}\n", line)).unwrap();
+
+    let subagents = scan_subagents_for_conversation(brain_dir, conv_id);
+    assert_eq!(subagents.len(), 1);
+    assert_eq!(subagents[0].state_label, "Dokončeno");
+    assert!(!subagents[0].is_active);
+}
+
+#[test]
 fn test_subagent_tracker_security_kill_entire_team() {
     use agy_daemon::subagent_tracker::kill_entire_team;
 
@@ -1366,6 +1398,18 @@ fn test_subagent_tracker_security_kill_entire_team() {
 
     // Non-existent PID returns error
     assert!(kill_entire_team(99999999).is_err());
+}
+
+#[test]
+fn test_kill_ai_process_robust_security_and_nonexistent() {
+    use agy_daemon::proc_monitor::kill_ai_process_robust;
+
+    // Reject PID 0 and PID 1
+    assert!(kill_ai_process_robust(0).is_err());
+    assert!(kill_ai_process_robust(1).is_err());
+
+    // Non-existent PID returns Ok(()) (already dead)
+    assert!(kill_ai_process_robust(99999999).is_ok());
 }
 
 #[test]

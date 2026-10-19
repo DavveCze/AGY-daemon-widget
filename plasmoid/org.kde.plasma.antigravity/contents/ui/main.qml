@@ -88,6 +88,9 @@ PlasmoidItem {
 
         onNewData: (sourceName, data) => {
             disconnectSource(sourceName);
+            if (data && data["stderr"] && data["stderr"].length > 0) {
+                console.warn("[AGY Plasmoid] Command", sourceName, "stderr:", data["stderr"]);
+            }
             stateTimer.restart();
             stateReader.read();
         }
