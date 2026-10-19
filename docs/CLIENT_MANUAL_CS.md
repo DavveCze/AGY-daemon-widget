@@ -86,7 +86,7 @@ Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpe�
 
 ### „Agent se zacyklil a nereaguje. Jak ho bezpečně ukončit?“
 * Na příslušné kartě sezení klikněte na červenou ikonu se symbolem stopky (`process-stop`).
-* Systém proces bezpečně a šetrně ukončí (odešle signál `SIGTERM`).
+* Systém proces bezpečně a spolehlivě ukončí – odešle kombinaci signálů `SIGTERM + SIGCONT` (aby probudil i pozastavené úlohy) a v případě potřeby po 200 ms automaticky eskaluje na `SIGKILL`.
 * **Bezpečnostní pojistka:** Monitor má vestavěnou ochranu jádra a nikdy vám nedovolí omylem ukončit systémový proces ani jiný otevřený program.
 
 ### „Mohou ostatní uživatelé na počítači číst mé prompty a kód?“

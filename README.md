@@ -4,7 +4,7 @@
 [![Qt 6](https://img.shields.io/badge/Qt-6.8%2B-41cd52?style=for-the-badge&logo=qt&logoColor=white)](https://www.qt.io/)
 [![Rust](https://img.shields.io/badge/Rust-2024%20Edition-black?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Linux Native](https://img.shields.io/badge/Linux-Kernel%20inotify%20%26%20procfs-fbc02d?style=for-the-badge&logo=linux&logoColor=black)](https://www.kernel.org/)
-[![Tests](https://img.shields.io/badge/Tests-35%20passed-success?style=for-the-badge)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-62%20passed-success?style=for-the-badge)](tests/)
 [![Security](https://img.shields.io/badge/Security-POSIX%200600%20%7C%20Kernel%20UID-blueviolet?style=for-the-badge)](docs/WALKTHROUGH.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
@@ -17,7 +17,8 @@ An ultra-responsive, modular, zero-overhead KDE Plasma 6 plasmoid and Linux proc
 
 ## 📚 Documentation
 * 📖 **[Comprehensive Technical Walkthrough](docs/WALKTHROUGH.md):** In-depth architecture, kernel security, IPC protocol, and testing strategy.
-* 👤 **[Client & User Manual](docs/CLIENT_MANUAL.md):** User-friendly guide for daily usage, FAQ, and troubleshooting.
+* 👤 **[Client & User Manual (English)](docs/CLIENT_MANUAL.md):** User-friendly guide for daily usage, FAQ, and troubleshooting.
+* 🇨🇿 **[Uživatelská příručka (Čeština)](docs/CLIENT_MANUAL_CS.md):** Přehledný klientský manuál pro každodenní používání.
 
 ---
 
@@ -26,18 +27,37 @@ An ultra-responsive, modular, zero-overhead KDE Plasma 6 plasmoid and Linux proc
 - **⚡ Zero Idle Overhead:** Event-driven architecture powered by Linux kernel `inotify` and `/proc` polling. Consumes **0.00% CPU** when idle.
 - **🛡️ Linux Kernel Security & Sandboxing:**
   - **Process Protection:** D-Bus and CLI `kill` commands verify target PIDs against active AI session whitelists and kernel UID (`/proc/{pid}/status`), preventing unauthorized signaling of system or user processes.
+  - **Robust Termination Escalation:** Process halting sends `SIGTERM + SIGCONT`, allowing suspended (`T`) processes to wake and terminate cleanly, escalating to `SIGKILL + SIGCONT` if necessary.
   - **Shared Memory Isolation:** Writes state to `/dev/shm/agenticom-state.json` strictly with POSIX mode `0600` and atomic `rename`, blocking local eavesdropping and symlink attacks.
   - **Shell Injection Immunity:** Direct vector execution for terminals (`konsole`, `kitty`, `alacritty`, `wezterm`, `xterm`) without `bash -c`, with path sanitization and conversation UUID whitelist validation.
 - **🔌 Multi-Provider Modular Architecture:** Pluggable provider system (`AgentProvider` trait) configurable in `~/.config/agenticom/config.json`:
   - 🔵 **Google Antigravity Provider:** Native `agy` process tracking, Gemini 3.8 Flash, 5-hour quota reset tracking, and 45+ skill indexing.
   - 🟠 **Anthropic Claude Code Provider:** Native `claude` CLI process detection, Sonnet 3.7 / Opus 4.6 token tracking, project transcripts, and user prompt alerts.
   - 🟢 **OpenAI Codex Provider:** Native detection for Codex CLI sessions (`o3-mini`, `o1`, `gpt-4o`) with subprocess tracking.
-- **🧠 Behavioral UX & CRO Optimization:**
-  - **Hick's Law (Single Primary CTA):** Prominent primary action button for starting sessions, with isolated secondary stop actions.
-  - **Fitts's Law (Touch-Friendly Hitboxes):** 34×34 px action buttons with protective spacing and 30 px filter pills.
-  - **Peripheral Provider Recognition:** 3 px vertical color stripe on session cards matching each AI provider.
-  - **Actionable Empty States:** Contextual CTAs tailored to active filters.
-- **🚀 Sub-millisecond UI Latency:** Plasmoid reads state directly from Linux RAM tmpfs (`/dev/shm/agenticom-state.json`) with zero physical disk I/O.
+
+### 🌟 4 Transformative Power-User Features
+1. **⚡ Phase A: Interactive Quick-Prompt Steering:**
+   - Launch new tasks directly from the widget drawer with custom prompts, provider selection, and model overrides.
+   - Inline decision helper allows responding to agent confirmation prompts (`y/n`) directly inside the widget card without alt-tabbing.
+   - Inline prompt dispatching directly into active sessions.
+2. **🛡️ Phase B: Predictive Token Shield & Burn-Rate Radar:**
+   - Real-time token consumption tracking (tokens/min and context growth/min) with stable float rounding.
+   - Global Burn-Rate Radar in header with color-coded velocity indicators and time-to-limit estimation (ETA).
+   - Context window limit estimation and proactive desktop alerts for runaway loops (> 75k tok/min).
+3. **🔍 Phase C: Smart In-Widget Git Diff & 1-Click Rollback:**
+   - Real-time git status tracking (branch name, uncommitted changes, +added/-deleted line counts).
+   - Inline monospace diff viewer with syntax highlighting and hunk inspection.
+   - 1-Click Rollback safely restores workspace to the last clean git commit with optional deletion of untracked files.
+4. **👥 Phase D: Agent Swarm & Subagent Tree View:**
+   - Real-time detection of spawned subagents (e.g. CRO Psychologist, DBA Guardian, System Architect) and child worker processes.
+   - ASCII-styled tree view hierarchy displaying subagent role icons, types, execution status, and aggregated RAM consumption.
+   - "Zastavit tým" recursive termination stops root session and all child processes with a safety confirmation.
+   - Intelligent subagent filtering hides finished/killed swarms when no workers remain active.
+
+### 🎯 Flicker-Free State Reconciliation Engine
+- **Raw State Caching:** Intercepts identical state pulses in `main.qml` to prevent unnecessary QML property re-evaluations.
+- **Scroll Preservation:** Uses native `contentX`/`contentY` bindings on `Flickable` to keep reading position steady in the diff viewer and session list across 1-second background refresh ticks.
+- **Input Guard:** Active typing in prompt drawers and inline search bars locks focus, eliminating cursor jumps and lost keystrokes.
 
 ---
 
@@ -48,6 +68,9 @@ flowchart TD
     subgraph UI["KDE Plasma 6 Desktop"]
         Tray["System Tray / Panel Icon\n(Pulsing state dot & active badge)"]
         Dashboard["Full Dashboard Window\n(QML, Kirigami, Provider Pills)"]
+        QuickPrompt["Quick-Prompt & Inline Steering"]
+        DiffViewer["Inline Git Diff & Rollback"]
+        SwarmTree["Agent Swarm Tree View"]
     end
 
     subgraph Memory["RAM (Linux tmpfs)"]
@@ -55,10 +78,11 @@ flowchart TD
     end
 
     subgraph Daemon["AgentiCom Daemon (Rust 2024)"]
-        Registry["Provider Registry\n(~/.config/agenticom/config.json)"]
-        P_AGY["AntigravityProvider (Gemini)"]
-        P_Claude["ClaudeProvider (Anthropic)"]
-        P_Codex["CodexProvider (OpenAI)"]
+        Scanner["Procfs & Inotify Scanner\n(proc_monitor.rs)"]
+        BurnRate["Predictive Burn-Rate Tracker\n(burn_rate_tracker.rs)"]
+        GitInsp["Git Inspector\n(git_inspector.rs)"]
+        SubagentTrk["Subagent Tracker\n(subagent_tracker.rs)"]
+        Reg["Provider Registry\n(providers/registry.rs)"]
         DbusService["D-Bus Session Service\n(org.kde.plasma.antigravity)"]
     end
 
@@ -66,20 +90,23 @@ flowchart TD
         A_AGY["Google Antigravity (agy)"]
         A_Claude["Anthropic Claude Code (claude)"]
         A_Codex["OpenAI Codex (codex)"]
+        Subagents["Specialized Subagents & Workers"]
     end
 
     Tray <--> Dashboard
+    Dashboard --> QuickPrompt
+    Dashboard --> DiffViewer
+    Dashboard --> SwarmTree
     Dashboard <-->|Read state every 1.0s| ShmState
-    Dashboard <-->|D-Bus Methods: Kill, Launch, Config| DbusService
+    Dashboard <-->|D-Bus Methods: Kill, Launch, Steering, Git, Swarm| DbusService
 
-    Registry --> P_AGY
-    Registry --> P_Claude
-    Registry --> P_Codex
+    Reg --> Scanner
+    Reg --> BurnRate
+    Reg --> GitInsp
+    Reg --> SubagentTrk
 
-    P_AGY -->|Procfs & DB| A_AGY
-    P_Claude -->|Procfs & Transcripts| A_Claude
-    P_Codex -->|Procfs & Children| A_Codex
-
+    A_AGY --> Subagents
+    SubagentTrk --> Subagents
     Daemon -->|Atomic secure write| ShmState
 ```
 
@@ -152,18 +179,18 @@ agenticom-daemon dump
 
 ## 🧪 Comprehensive Verification
 
-AgentiCom includes an automated test runner:
+AgentiCom includes an automated test runner validating all system layers:
 
 ```bash
 ./test.sh
 ```
 
 The test runner validates:
-1. **Rust Unit & Integration Tests (35 Tests):** Process isolation, SQLite reader, quota parsing, multi-provider registry, kernel security guardrails, and settings synchronization.
-2. **QML Syntax Validation (`qmllint`):** Strict verification of all QML files against Qt 6 standards.
-3. **Plasma Package Verification (`kpackagetool6`):** Validates plasmoid registration.
-4. **D-Bus Responsiveness:** Tests IPC calls against `org.kde.plasma.antigravity`.
-5. **Systemd User Unit:** Verifies healthy background service execution.
+1. **Rust Unit & Integration Tests (57 Tests):** Multi-provider detection, process monitoring, SQLite readers, quota parsers, burn-rate estimation, git diff/rollback, subagent swarm hierarchy, robust termination escalation, and kernel security invariants.
+2. **Plasmoid Structure & QML Linting:** Syntax validation of `main.qml`, `CompactRepresentation.qml`, and `FullRepresentation.qml` against Qt 6 and KDE Plasma 6 standards.
+3. **Causal UI Scroll & State Reconciliation Tests (5 Causal Tests):** Validates raw state identity caching, scroll preservation during refresh pulses, diff viewer line retention, draft input locks, and float stabilization.
+4. **D-Bus Interface Verification:** Tests live IPC responsiveness on session bus `org.kde.plasma.antigravity`.
+5. **Systemd User Unit:** Verifies healthy daemon execution and background persistence.
 
 ---
 
@@ -175,9 +202,13 @@ The daemon exposes an IPC interface on the session bus under `org.kde.plasma.ant
 | :--- | :--- | :--- |
 | `get_state_json` | `() -> String` | Returns the complete serialized system state. |
 | `get_active_count` | `() -> u32` | Returns the number of active AI sessions. |
-| `kill_session` | `(u32 pid) -> bool` | Securely terminates a verified AI session with UID checks. |
+| `kill_session` | `(u32 pid) -> bool` | Robustly terminates an AI session with SIGTERM/SIGCONT/SIGKILL escalation. |
+| `kill_team` | `(u32 pid) -> bool` | Recursively terminates the root session and all its child subagents/workers. |
 | `launch_session` | `(String workspace) -> bool` | Launches a new terminal session in the given workspace. |
 | `resume_session` | `(String conv_id, String workspace) -> bool` | Attaches terminal to an existing conversation. |
+| `resume_session_with_quick_prompt` | `(conv_id, workspace, prompt, model, agent, effort) -> bool` | Resumes or launches a session with inline steering/prompt instructions. |
+| `get_git_diff` | `(String workspace) -> String` | Returns git diff of uncommitted changes in the workspace. |
+| `rollback_git_changes` | `(String workspace, bool discard_untracked) -> bool` | Safely rolls back uncommitted changes to clean git state. |
 | `set_model` | `(String model) -> bool` | Updates the default AI model. |
 | `set_effort` | `(String effort) -> bool` | Updates reasoning effort (`low`, `medium`, `high`, `max`). |
 | `set_agent_mode` | `(String mode) -> bool` | Updates agent mode (`auto`, `accept-edits`, `plan`). |

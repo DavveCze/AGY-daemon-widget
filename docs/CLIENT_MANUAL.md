@@ -86,7 +86,7 @@ If you accidentally close a terminal window, your agent continues running safely
 
 ### "An agent is stuck or unresponsive. How do I safely terminate it?"
 * Click the red stop button (`process-stop`) on the session card.
-* The daemon safely sends a `SIGTERM` signal to stop the process gracefully.
+* The daemon safely and reliably terminates the process by sending `SIGTERM + SIGCONT` (waking up any suspended tasks) and automatically escalating to `SIGKILL` after 200 ms if needed.
 * **Kernel Security Invariant:** AgentiCom has kernel UID verification and process tracking. It is physically impossible to terminate system processes (like PID 1) or software belonging to other users.
 
 ### "Can other users on this computer see my prompts or code?"

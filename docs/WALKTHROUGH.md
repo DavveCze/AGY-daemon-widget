@@ -8,12 +8,16 @@ Welcome to the comprehensive technical guide for **AgentiCom (AI CLI Monitoring 
 
 1. [Executive Summary & High-Level Architecture](#1-executive-summary--high-level-architecture)
 2. [Multi-Provider Modular Engine](#2-multi-provider-modular-engine)
-3. [Linux Kernel Security & Sandboxing](#3-linux-kernel-security--sandboxing)
+3. [Linux Kernel Security, Sandboxing & Robust Process Termination](#3-linux-kernel-security-sandboxing--robust-process-termination)
 4. [Zero-Copy Shared Memory IPC Protocol (`/dev/shm`)](#4-zero-copy-shared-memory-ipc-protocol-devshm)
 5. [D-Bus Session Service & Systemd Integration](#5-d-bus-session-service--systemd-integration)
-6. [KDE Plasma 6 Plasmoid & CRO Behavioral UX](#6-kde-plasma-6-plasmoid--cro-behavioral-ux)
-7. [Comprehensive Verification & Testing Suite (35 Tests)](#7-comprehensive-verification--testing-suite-35-tests)
-8. [Operations, Troubleshooting & Diagnostics](#8-operations-troubleshooting--diagnostics)
+6. [Smart Git Diff & 1-Click Rollback Engine](#6-smart-git-diff--1-click-rollback-engine)
+7. [Predictive Token Shield & Burn Rate Radar Engine](#7-predictive-token-shield--burn-rate-radar-engine)
+8. [Interactive Quick-Prompting & Inline Steering](#8-interactive-quick-prompting--inline-steering)
+9. [KDE Plasma 6 Plasmoid, CRO UX & State Reconciliation Engine](#9-kde-plasma-6-plasmoid-cro-ux--state-reconciliation-engine)
+10. [Agent Swarm & Subagent Tree View](#10-agent-swarm--subagent-tree-view)
+11. [Comprehensive Verification & Testing Suite (62 Tests)](#11-comprehensive-verification--testing-suite-62-tests)
+12. [Operations, Troubleshooting & Diagnostics](#12-operations-troubleshooting--diagnostics)
 
 ---
 
@@ -124,6 +128,13 @@ In [`daemon/src/proc_monitor.rs`](../daemon/src/proc_monitor.rs), the `verify_ki
 * Input paths are sanitized with `fs::canonicalize` and null bytes/control characters are strictly rejected.
 * Conversation IDs are validated against an alphanumeric and UUID whitelist (`[a-zA-Z0-9_\-\.]`).
 
+### 3.4 Robust Process Termination & Escalation
+* CLI AI sessions (especially node/python-based CLI tools) may be suspended in the background in stopped state `T` (e.g. paused on job control or SIGTSTP).
+* [`daemon/src/proc_monitor.rs`](../daemon/src/proc_monitor.rs) implements `kill_ai_process_robust`:
+  1. Sends `SIGTERM` followed immediately by `SIGCONT` so suspended processes wake up to handle termination.
+  2. Waits 200 ms for graceful exit.
+  3. If `/proc/{pid}` still exists, escalates to `SIGKILL` followed by `SIGCONT` to ensure immediate, clean teardown.
+
 ---
 
 ## 4. Zero-Copy Shared Memory IPC Protocol (`/dev/shm`)
@@ -203,7 +214,7 @@ AgentiCom includes an intelligent steering engine ([`daemon/src/steering_engine.
 
 ---
 
-## 9. KDE Plasma 6 Plasmoid & CRO Behavioral UX
+## 9. KDE Plasma 6 Plasmoid, CRO UX & State Reconciliation Engine
 
 The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
@@ -219,6 +230,10 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
   * 🟢 **OpenAI Codex:** `#10b981`
 * **Card Left Stripe:** Each card features a 3px vertical color stripe along its left edge matching its provider, providing instant peripheral recognition without reading text.
 * **Dual-Coding in Tabs:** All tabs feature both an icon and text label (`utilities-terminal`, `view-history`, `configure`, `plugins`), speeding visual orientation by over 30%.
+* **Flicker-Free Granular State Reconciliation Engine:**
+  * **Raw State Identity Caching:** `main.qml` retains a `lastRawStateJson` string hash. If the incoming state pulse from `/dev/shm` is bit-for-bit identical, QML property updates and model bindings are skipped, preserving UI tree stability.
+  * **Native Scroll Preservation:** The git diff viewer and active sessions use `Flickable` with explicit `contentX` and `contentY` bindings instead of standard `ScrollView`, preventing annoying resets to line 1 during periodic background updates.
+  * **Interactive Drafting Guards:** Active typing in prompt drawers or inline steering bars locks focus and suppresses list view re-layouts.
 
 ---
 
@@ -226,8 +241,9 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 AgentiCom features an active **Swarm Hierarchy Tracker** ([`daemon/src/subagent_tracker.rs`](../daemon/src/subagent_tracker.rs)) that continuously tracks subagents and child worker processes:
 
-* **Real-Time Subagent Discovery:**
+* **Real-Time Subagent Discovery & Filtering:**
   * Reads subagent metadata from `.system_generated/subagents/*.json` per conversation.
+  * Explicitly filters out dead, killed (`SUBAGENT_STATE_KILLED`), and cancelled tasks to avoid displaying ghost swarms.
   * Identifies specialized agent personas with visual iconography:
     - 🧠 `cro-psychologist` (CRO Psychologist)
     - 🛡️ `dba-guardian` (Database Administrator)
@@ -242,71 +258,92 @@ AgentiCom features an active **Swarm Hierarchy Tracker** ([`daemon/src/subagent_
 * **KDE Plasma Swarm UI:**
   * **Summary Badge:** Displays total team members, active count, and aggregated team RAM (e.g. `👥 Tým: 3 subagenti (3 aktivní) • Celkem RAM: 751 MB ▾`).
   * **Interactive Tree View:** Expands to show an ASCII tree structure (`├─`, `└─`) with each subagent's role, type, and live state badge (`Běží`, `Dokončeno`, `Čeká`).
-  * **1-Click Stop Team Action (`[ Zastavit tým ]`):** Recursively signals `SIGTERM` to all child processes and the parent session with safety confirmation to immediately halt runaway agent swarms.
+  * **Adaptive Visibility:** The swarm badge automatically collapses when all subagents complete or terminate (`active_members == 0`).
+  * **1-Click Stop Team Action (`[ Zastavit tým ]`):** Recursively signals `SIGTERM + SIGCONT` escalating to `SIGKILL` across all child processes and the parent session with safety confirmation to halt runaway agent swarms.
 
 ---
 
-## 11. Comprehensive Verification & Testing Suite (53 Tests)
+## 11. Comprehensive Verification & Testing Suite (62 Tests)
 
-The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
+AgentiCom maintains a two-tiered testing suite executed via `./test.sh`:
+
+### 11.1 Rust Daemon Tests (57 Unit & Integration Tests)
+Located in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs):
 
 ```
-running 53 tests
-test test_subagent_tracker_map_state_and_icons ... ok
-test test_subagent_tracker_scan_subagents_directory ... ok
-test test_subagent_tracker_security_kill_entire_team ... ok
-test test_steering_engine_resume_session_with_quick_prompt ... ok
-test test_steering_engine_prompt_sanitization_valid_and_invalid ... ok
-test test_steering_engine_build_cli_arguments_antigravity ... ok
-test test_steering_engine_build_cli_arguments_claude_and_codex ... ok
-test test_steering_engine_execute_rejects_invalid_workspace ... ok
+running 57 tests
 test test_all_available_models_and_agents_registry ... ok
-test test_burn_rate_tracker_context_limit_estimation ... ok
-test test_burn_rate_tracker_global_radar_and_trends ... ok
+test test_burn_rate_float_stabilization_and_rounding ... ok
 test test_agenticom_config_defaults_and_serialization ... ok
-test test_burn_rate_tracker_pruning_and_window_expiry ... ok
+test test_backward_compatible_deserialization_defaults ... ok
+test test_burn_rate_tracker_context_limit_estimation ... ok
 test test_burn_rate_tracker_idle_and_steady_consumption ... ok
+test test_burn_rate_tracker_global_radar_and_trends ... ok
+test test_burn_rate_tracker_pruning_and_window_expiry ... ok
 test test_burn_rate_tracker_spike_detection ... ok
 test test_codex_provider_heuristics_and_scan ... ok
 test test_codex_token_usage_parsing ... ok
-test test_backward_compatible_deserialization_defaults ... ok
+test test_git_inspector_security_reject_invalid_paths ... ok
+test test_kill_ai_process_robust_security_and_nonexistent ... ok
+test test_git_status_info_defaults_and_serialization ... ok
 test test_notification_tracker_quota_threshold ... ok
 test test_notification_tracker_duplicate_prevention ... ok
-test test_proc_monitor_cwd_fallback_on_inaccessible ... ok
 test test_proc_monitor_cmdline_filtering_and_exclusion ... ok
+test test_proc_monitor_cwd_fallback_on_inaccessible ... ok
 test test_proc_monitor_page_size_detection ... ok
 test test_process_stats_and_memory_rounding ... ok
-test test_live_transcript_status_busy_detection ... ok
 test test_provider_registry_multi_provider ... ok
 test test_provider_registry_multi_provider_filtering ... ok
-test test_security_kill_session_self_and_init_rejected ... ok
-test test_security_kill_session_unauthorized_uid_rejected ... ok
-test test_security_kill_session_untracked_pid_rejected ... ok
+test test_live_transcript_status_busy_detection ... ok
 test test_quota_parser_fallback_on_corrupted_output ... ok
+test test_security_kill_session_self_and_init_rejected ... ok
 test test_security_sanitize_conversation_id_command_injection_rejected ... ok
-test test_security_sanitize_workspace_path_traversal_rejected ... ok
-test test_security_shared_memory_file_permissions_0600 ... ok
-test test_scan_skills_metadata_parsing ... ok
-test test_settings_manager_legacy_gemini_flash_id_migration ... ok
-test test_db_reader_metadata_missing_conversation_returns_none ... ok
+test test_security_kill_session_unauthorized_uid_rejected ... ok
 test test_quota_parser_live_format ... ok
-test test_settings_manager_notifications_and_sound_toggle ... ok
-test test_token_usage_percentage_boundary_clamping ... ok
+test test_db_reader_metadata_missing_conversation_returns_none ... ok
+test test_security_sanitize_workspace_path_traversal_rejected ... ok
+test test_security_kill_session_untracked_pid_rejected ... ok
+test test_scan_skills_metadata_parsing ... ok
 test test_settings_manager_effort_auto_synchronization ... ok
-test test_skills_scanner_frontmatter_multiline_folding ... ok
-test test_settings_manager_read_and_update ... ok
-test test_skills_scanner ... ok
+test test_steering_engine_build_cli_arguments_antigravity ... ok
 test test_db_reader_recent_conversations_pagination_and_sorting ... ok
-test test_state_serialization_roundtrip ... ok
+test test_settings_manager_notifications_and_sound_toggle ... ok
+test test_steering_engine_execute_rejects_invalid_workspace ... ok
+test test_security_shared_memory_file_permissions_0600 ... ok
+test test_skills_scanner ... ok
+test test_settings_manager_read_and_update ... ok
+test test_settings_manager_legacy_gemini_flash_id_migration ... ok
+test test_steering_engine_build_cli_arguments_claude_and_codex ... ok
+test test_skills_scanner_frontmatter_multiline_folding ... ok
+test test_steering_engine_prompt_sanitization_valid_and_invalid ... ok
 test test_db_reader_with_sqlite_memory ... ok
+test test_steering_engine_resume_session_with_quick_prompt ... ok
+test test_subagent_tracker_map_state_and_icons ... ok
+test test_subagent_tracker_security_kill_entire_team ... ok
+test test_token_usage_percentage_boundary_clamping ... ok
+test test_state_serialization_roundtrip ... ok
+test test_subagent_tracker_realtime_transcript_resolution ... ok
+test test_git_inspector_get_diff ... ok
+test test_subagent_tracker_scan_subagents_directory ... ok
+test test_git_inspector_rollback_changes_tracked_and_untracked ... ok
+test test_git_inspector_detect_clean_and_dirty_repo ... ok
+test test_subagent_tracker_filters_killed_and_inactive_team_visibility ... ok
 test test_daemon_cli_dump_execution ... ok
 
-test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.98s
+test result: ok. 57 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.55s
 ```
+
+### 11.2 Causal UI Scroll & State Reconciliation Tests (5 Causal Tests)
+Located in [`tests/test_scroll_preservation_and_reconciliation.py`](../tests/test_scroll_preservation_and_reconciliation.py):
+1. **Raw State Identity Caching:** Verifies identical pulse deduplication (0 redundant re-evaluations).
+2. **Active Sessions Scroll Preservation:** Pinned scroll position under rapid background refreshes.
+3. **Inline Diff Drawer Reading Lock:** Preserves precise reading coordinates during diff inspection.
+4. **Draft Prompt Preservation:** Ensures active keystrokes in inline steering drawers are never overwritten.
+5. **Float Clamping & Serialization Stability:** Guarantees stable JSON formatting without oscillating fractions.
 
 ---
 
-## 8. Operations, Troubleshooting & Diagnostics
+## 12. Operations, Troubleshooting & Diagnostics
 
 ### Checking Daemon Service Status
 ```bash
