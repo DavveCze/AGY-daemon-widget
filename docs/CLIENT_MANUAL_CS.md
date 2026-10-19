@@ -47,6 +47,16 @@ AgentiCom v reálném čase počítá rychlost pálení tokenů vašimi AI agent
 * **Badge rychlosti u sezení:** Každá karta úkolu ukazuje své konkrétní tempo (např. `🔥 14.7k tok/min` nebo `• Klid`) a odhad zbývajícího času do zaplnění 1M kontextového okna.
 * **Proaktivní varování Token Shield:** Pokud se agent zacyklí nebo začne abnormálně rychle pálit tokeny (> 75 000 tok/min), widget okamžitě odešle desktopovou notifikaci, abyste mohli včas zasáhnout dříve, než vám dojde kvóta.
 
+### Rychlé spouštění se zadáním promptu (Quick-Prompting)
+Nemusíte nejprve otevírat terminál a teprve tam psát zadání:
+1. Ve spodní liště klikněte na tlačítko **„Rychlý prompt“**.
+2. Rozbalí se jednoduché textové okénko, kde můžete vybrat poskytovatele (`antigravity`, `claude`, `codex`) a vepsat své zadání (např. *„Zkontroluj kód v src/ a vyřeš varování kompilátoru“*).
+3. Klikněte na **„🚀 Spustit sezení s promptem“** – systém sám otevře terminál a agent se ihned pustí do práce.
+
+### Rozhodovací asistent a řízení agenta přímo z widgetu (Inline Steering)
+* **Když se agent ptá na potvrzení:** Pokud agent čeká na vaše schválení (např. spuštění příkazu nebo zápis do souboru), na jeho kartě se rozsvítí modrý rámeček s tlačítky **„✅ Ano (y)“** a **„❌ Ne (n)“**. Nemusíte vůbec přepínat do terminálu – stačí kliknout a agent pokračuje.
+* **Inline zadání instrukce:** Přímo na kartě běžícího úkolu máte k dispozici textové pole *„Napsat instrukci pro toto sezení...“*. Zadejte doplňující pokyn a stiskněte Enter nebo tlačítko **Odeslat**.
+
 ### Jak se vrátit do rozpracovaného sezení
 Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpečně běží.
 1. Na kartě sezení klikněte na ikonu terminálu (`utilities-terminal`).

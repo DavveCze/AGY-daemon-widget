@@ -50,6 +50,7 @@ Item {
 
     property var activeRollbackPid: 0
     property var diffOpenedPid: 0
+    property bool isQuickPromptOpen: false
 
     function toggleDiffView(pid, workspace) {
         if (diffOpenedPid === pid) {
@@ -906,6 +907,105 @@ Item {
                                             fullRoot.activeRollbackPid = 0;
                                         } else {
                                             fullRoot.activeRollbackPid = modelData.pid;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ==========================================
+                            // INLINE STEERING: WAITING FOR USER CONFIRMATION
+                            // ==========================================
+                            Rectangle {
+                                Layout.fillWidth: true
+                                visible: Boolean(modelData.is_asking_user)
+                                radius: 4
+                                color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
+                                border.color: Kirigami.Theme.highlightColor
+                                border.width: 1
+                                implicitHeight: askCol.implicitHeight + 12
+
+                                ColumnLayout {
+                                    id: askCol
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 4
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Kirigami.Icon {
+                                            source: "dialog-question"
+                                            Layout.preferredWidth: 16
+                                            Layout.preferredHeight: 16
+                                        }
+                                        Text {
+                                            text: "Agent čeká na vaše rozhodnutí nebo odpověď:"
+                                            font.bold: true
+                                            font.pixelSize: 11
+                                            color: Kirigami.Theme.highlightColor
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        PlasmaComponents3.Button {
+                                            text: "✅ Ano (y)"
+                                            highlighted: true
+                                            Layout.preferredHeight: 26
+                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "y")
+                                        }
+
+                                        PlasmaComponents3.Button {
+                                            text: "❌ Ne (n)"
+                                            Layout.preferredHeight: 26
+                                            onClicked: root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, "n")
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        PlasmaComponents3.Button {
+                                            icon.name: "utilities-terminal"
+                                            text: "Otevřít v terminálu"
+                                            Layout.preferredHeight: 26
+                                            onClicked: root.resumeSession(modelData.conversation_id, modelData.workspace_path)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ==========================================
+                            // INLINE QUICK-STEERING PROMPT BAR
+                            // ==========================================
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                PlasmaComponents3.TextField {
+                                    id: inlinePromptField
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 26
+                                    font.pixelSize: 10
+                                    placeholderText: "Napsat instrukci pro toto sezení..."
+                                    onAccepted: {
+                                        if (text.trim().length > 0) {
+                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, text.trim());
+                                            text = "";
+                                        }
+                                    }
+                                }
+
+                                PlasmaComponents3.Button {
+                                    icon.name: "mail-send"
+                                    text: "Odeslat"
+                                    Layout.preferredHeight: 26
+                                    enabled: inlinePromptField.text.trim().length > 0
+                                    PlasmaComponents3.ToolTip.text: "Odeslat prompt a navázat sezení v terminálu"
+                                    onClicked: {
+                                        if (inlinePromptField.text.trim().length > 0) {
+                                            root.resumeWithPrompt(modelData.conversation_id, modelData.workspace_path, inlinePromptField.text.trim());
+                                            inlinePromptField.text = "";
                                         }
                                     }
                                 }
@@ -2002,6 +2102,96 @@ Item {
             }
         }
 
+        // --- GLOBAL QUICK-PROMPT DRAWER (Interactive Quick-Prompting) ---
+        Rectangle {
+            Layout.fillWidth: true
+            visible: fullRoot.isQuickPromptOpen
+            implicitHeight: fullRoot.isQuickPromptOpen ? (quickPromptCol.implicitHeight + 16) : 0
+            radius: Kirigami.Units.smallSpacing
+            color: Kirigami.Theme.alternateBackgroundColor
+            border.color: Kirigami.Theme.highlightColor
+            border.width: 1
+
+            ColumnLayout {
+                id: quickPromptCol
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: Kirigami.Units.smallSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Kirigami.Icon {
+                        source: "quickopen"
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                    }
+                    Text {
+                        text: "Rychlé zadání promptu pro nového agenta:"
+                        font.bold: true
+                        font.pixelSize: 11
+                        color: Kirigami.Theme.textColor
+                    }
+                    Item { Layout.fillWidth: true }
+                    PlasmaComponents3.ComboBox {
+                        id: quickProviderCombo
+                        model: ["antigravity", "claude", "codex"]
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 28
+                    }
+                }
+
+                QQC2.ScrollView {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 70
+                    clip: true
+
+                    QQC2.TextArea {
+                        id: quickPromptText
+                        font.pixelSize: 11
+                        placeholderText: "Zadejte zadání pro nového agenta (např. 'Zkontroluj stav repozitáře a navrhni refaktoring')..."
+                        wrapMode: TextEdit.Wrap
+                        background: Rectangle {
+                            color: Kirigami.Theme.backgroundColor
+                            border.color: fullRoot.borderColor
+                            border.width: 1
+                            radius: 3
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    PlasmaComponents3.Button {
+                        text: "Zrušit"
+                        Layout.preferredHeight: 30
+                        onClicked: {
+                            fullRoot.isQuickPromptOpen = false;
+                            quickPromptText.text = "";
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    PlasmaComponents3.Button {
+                        text: "🚀 Spustit sezení s promptem"
+                        icon.name: "media-playback-start"
+                        highlighted: true
+                        Layout.preferredHeight: 30
+                        enabled: quickPromptText.text.trim().length > 0
+                        onClicked: {
+                            var prompt = quickPromptText.text.trim();
+                            var provider = quickProviderCombo.currentText;
+                            root.launchWithPrompt("", prompt, provider);
+                            quickPromptText.text = "";
+                            fullRoot.isQuickPromptOpen = false;
+                        }
+                    }
+                }
+            }
+        }
+
         // --- BOTTOM ACTIONS FOOTER (Single Primary CTA & Error Prevention) ---
         RowLayout {
             Layout.fillWidth: true
@@ -2010,10 +2200,20 @@ Item {
             PlasmaComponents3.Button {
                 text: "Spustit nové sezení"
                 icon.name: "utilities-terminal"
-                highlighted: true
+                highlighted: !fullRoot.isQuickPromptOpen
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
                 onClicked: root.launchTerminal("")
+            }
+
+            PlasmaComponents3.Button {
+                text: fullRoot.isQuickPromptOpen ? "Zavřít prompt" : "Rychlý prompt"
+                icon.name: "quickopen"
+                Layout.preferredHeight: 38
+                checkable: true
+                checked: fullRoot.isQuickPromptOpen
+                PlasmaComponents3.ToolTip.text: "Otevřít rychlý editor promptu pro okamžité spuštění agenta"
+                onClicked: fullRoot.isQuickPromptOpen = !fullRoot.isQuickPromptOpen
             }
 
             PlasmaComponents3.Button {

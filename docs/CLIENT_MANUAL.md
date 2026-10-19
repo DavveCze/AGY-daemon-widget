@@ -47,6 +47,16 @@ AgentiCom continuously computes the velocity at which your AI agents consume tok
 * **Session Burn Rate Badge:** Each active card displays its specific consumption rate (e.g. `🔥 14.7k tok/min` or `⚡ Stable`) and estimated minutes remaining before the 1M context window fills up.
 * **Proactive Token Shield Alerts:** If an agent encounters a runaway loop or excessively consumes tokens (> 75,000 tokens/min), AgentiCom sends an urgent desktop notification so you can intervene before exhausting your quota.
 
+### Quick-Prompt Launching
+Launch tasks without having to open a terminal first:
+1. In the bottom footer, click the **"Rychlý prompt"** (Quick Prompt) toggle button.
+2. A multi-line prompt drawer will expand. Select your desired provider (`antigravity`, `claude`, `codex`) and type your task description.
+3. Click **"🚀 Spustit sezení s promptem"** – AgentiCom spawns an isolated terminal and immediately begins working on your task.
+
+### Inline Steering & Decision Helper
+* **Interactive Confirmations:** When an agent waits for user approval (`is_asking_user`), an inline decision banner appears with `[ ✅ Ano (y) ]` and `[ ❌ Ne (n) ]` buttons. You can answer directly from the widget without switching to the terminal.
+* **Inline Steering Input:** Each active card has an inline prompt bar allowing you to type instructions and send them directly into the session with a single click or by pressing Enter.
+
 ### Resuming an Existing Session
 If you accidentally close a terminal window, your agent continues running safely in the background.
 1. Click the terminal icon (`utilities-terminal`) on the session card.

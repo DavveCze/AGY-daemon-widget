@@ -59,6 +59,32 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         clean_untracked: bool,
     },
+    /// Launch a new session with an initial prompt directly from CLI
+    QuickPrompt {
+        #[arg(short, long)]
+        workspace: String,
+        #[arg(short, long)]
+        prompt: String,
+        #[arg(long, default_value = "antigravity")]
+        provider: String,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long)]
+        effort: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long)]
+        mode: Option<String>,
+    },
+    /// Resume an existing session with an interactive prompt
+    ResumePrompt {
+        #[arg(short, long)]
+        conversation_id: String,
+        #[arg(short, long)]
+        workspace: String,
+        #[arg(short, long)]
+        prompt: String,
+    },
 }
 
 fn get_base_paths() -> (
@@ -364,6 +390,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match agy_daemon::git_inspector::rollback_git_changes(&workspace, clean_untracked) {
                 Ok(msg) => println!("{}", msg),
                 Err(e) => eprintln!("Error during git rollback: {}", e),
+            }
+            return Ok(());
+        }
+        Commands::QuickPrompt { workspace, prompt, provider, model, effort, agent, mode } => {
+            let options = agy_daemon::steering_engine::QuickPromptOptions {
+                workspace_path: workspace,
+                prompt,
+                conversation_id: None,
+                provider,
+                model,
+                effort,
+                agent,
+                mode,
+            };
+            match agy_daemon::steering_engine::execute_quick_prompt(&options) {
+                Ok(_) => println!("Quick prompt launched successfully in terminal."),
+                Err(e) => eprintln!("Error executing quick prompt: {}", e),
+            }
+            return Ok(());
+        }
+        Commands::ResumePrompt { conversation_id, workspace, prompt } => {
+            match agy_daemon::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt) {
+                Ok(_) => println!("Session resumed with prompt successfully in terminal."),
+                Err(e) => eprintln!("Error resuming session with prompt: {}", e),
             }
             return Ok(());
         }

@@ -181,7 +181,29 @@ AgentiCom features an active **Token Velocity Engine** ([`daemon/src/burn_rate_t
 
 ---
 
-## 8. KDE Plasma 6 Plasmoid & CRO Behavioral UX
+## 8. Interactive Quick-Prompting & Inline Steering
+
+AgentiCom includes an intelligent steering engine ([`daemon/src/steering_engine.rs`](../daemon/src/steering_engine.rs)) allowing developers to launch and guide AI CLI sessions without manually switching focus to a terminal:
+
+* **Global Quick-Prompt Drawer:**
+  * Toggleable via the `[ Rychlý prompt ]` button in the plasmoid footer.
+  * Provides a multi-line prompt editor with provider selection (`antigravity`, `claude`, `codex`).
+  * Seamlessly invokes the appropriate CLI with sanitized prompt text in an isolated terminal window.
+* **Inline Decision Helper (Asking-User Mode):**
+  * When an agent enters `is_asking_user` status, the session card automatically displays an actionable decision banner.
+  * Instant 1-click response buttons: `[ ✅ Ano (y) ]` and `[ ❌ Ne (n) ]` immediately inject the decision into the active conversation.
+  * `[ 🖥️ Otevřít v terminálu ]` allows opening the full terminal session whenever complex interaction is needed.
+* **Inline Quick-Steering Input:**
+  * Each active session card features a streamlined prompt bar (`TextField` + `[ ✈️ Odeslat ]`).
+  * Enables directing or giving new instructions to a running session without terminal switching.
+* **Security & Sanitization:**
+  * All user input is rigorously sanitized against command injection, null bytes, and terminal control sequences (`\x1b`).
+  * Maximum prompt length clamped to 8,192 characters.
+  * Workspace paths are validated against directory traversal and symlink hijacking.
+
+---
+
+## 9. KDE Plasma 6 Plasmoid & CRO Behavioral UX
 
 The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
@@ -200,12 +222,16 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 ---
 
-## 9. Comprehensive Verification & Testing Suite (45 Tests)
+## 10. Comprehensive Verification & Testing Suite (49 Tests)
 
 The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
 
 ```
-running 45 tests
+running 49 tests
+test test_steering_engine_prompt_sanitization_valid_and_invalid ... ok
+test test_steering_engine_build_cli_arguments_antigravity ... ok
+test test_steering_engine_build_cli_arguments_claude_and_codex ... ok
+test test_steering_engine_execute_rejects_invalid_workspace ... ok
 test test_all_available_models_and_agents_registry ... ok
 test test_burn_rate_tracker_context_limit_estimation ... ok
 test test_burn_rate_tracker_global_radar_and_trends ... ok
@@ -247,7 +273,7 @@ test test_state_serialization_roundtrip ... ok
 test test_db_reader_with_sqlite_memory ... ok
 test test_daemon_cli_dump_execution ... ok
 
-test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.88s
+test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.98s
 ```
 
 ---

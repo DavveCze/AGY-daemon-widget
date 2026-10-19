@@ -117,4 +117,37 @@ impl AntigravityDbus {
             Err(e) => (false, e),
         }
     }
+
+    async fn launch_with_prompt(
+        &self,
+        workspace: String,
+        prompt: String,
+        provider: String,
+        model: String,
+        effort: String,
+        agent: String,
+        mode: String,
+    ) -> bool {
+        let options = crate::steering_engine::QuickPromptOptions {
+            workspace_path: workspace,
+            prompt,
+            conversation_id: None,
+            provider,
+            model: if model.is_empty() { None } else { Some(model) },
+            effort: if effort.is_empty() { None } else { Some(effort) },
+            agent: if agent.is_empty() { None } else { Some(agent) },
+            mode: if mode.is_empty() { None } else { Some(mode) },
+        };
+        crate::steering_engine::execute_quick_prompt(&options).unwrap_or(false)
+    }
+
+    async fn resume_with_prompt(
+        &self,
+        conversation_id: String,
+        workspace: String,
+        prompt: String,
+    ) -> bool {
+        crate::steering_engine::resume_session_with_quick_prompt(&conversation_id, &workspace, &prompt)
+            .unwrap_or(false)
+    }
 }

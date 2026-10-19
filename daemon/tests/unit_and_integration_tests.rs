@@ -1142,6 +1142,103 @@ fn test_burn_rate_tracker_global_radar_and_trends() {
     assert!(radar.est_minutes_to_five_hour_limit.is_some());
 }
 
+#[test]
+fn test_steering_engine_prompt_sanitization_valid_and_invalid() {
+    use agy_daemon::steering_engine::sanitize_prompt_text;
+
+    assert!(sanitize_prompt_text("").is_err());
+    assert!(sanitize_prompt_text("   ").is_err());
+    assert!(sanitize_prompt_text("Valid prompt with space").is_ok());
+    assert!(sanitize_prompt_text("Test with null \0 byte").is_err());
+    assert!(sanitize_prompt_text("Test with escape \x1b[31mred").is_err());
+
+    let long_prompt = "a".repeat(8193);
+    assert!(sanitize_prompt_text(&long_prompt).is_err());
+}
+
+#[test]
+fn test_steering_engine_build_cli_arguments_antigravity() {
+    use agy_daemon::steering_engine::{build_cli_arguments, QuickPromptOptions};
+
+    let opts = QuickPromptOptions {
+        workspace_path: "/tmp".to_string(),
+        prompt: "Refactor database models".to_string(),
+        conversation_id: Some("conv-12345".to_string()),
+        provider: "antigravity".to_string(),
+        model: Some("gemini-3.8-flash-high".to_string()),
+        effort: Some("high".to_string()),
+        agent: Some("dba-guardian".to_string()),
+        mode: Some("auto".to_string()),
+    };
+
+    let (bin, args) = build_cli_arguments(&opts).expect("Failed to build args");
+    assert_eq!(bin, "agy");
+    assert!(args.contains(&"--conversation".to_string()));
+    assert!(args.contains(&"conv-12345".to_string()));
+    assert!(args.contains(&"--agent".to_string()));
+    assert!(args.contains(&"dba-guardian".to_string()));
+    assert!(args.contains(&"--model".to_string()));
+    assert!(args.contains(&"gemini-3.8-flash-high".to_string()));
+    assert!(args.contains(&"--effort".to_string()));
+    assert!(args.contains(&"high".to_string()));
+    assert!(args.contains(&"--mode".to_string()));
+    assert!(args.contains(&"auto".to_string()));
+    assert!(args.contains(&"-i".to_string()));
+    assert!(args.contains(&"Refactor database models".to_string()));
+}
+
+#[test]
+fn test_steering_engine_build_cli_arguments_claude_and_codex() {
+    use agy_daemon::steering_engine::{build_cli_arguments, QuickPromptOptions};
+
+    let claude_opts = QuickPromptOptions {
+        workspace_path: "/tmp".to_string(),
+        prompt: "Write unit test".to_string(),
+        conversation_id: None,
+        provider: "claude".to_string(),
+        model: Some("claude-sonnet-4-6".to_string()),
+        effort: None,
+        agent: None,
+        mode: None,
+    };
+    let (c_bin, c_args) = build_cli_arguments(&claude_opts).expect("Claude args failed");
+    assert_eq!(c_bin, "claude");
+    assert_eq!(c_args, vec!["--model", "claude-sonnet-4-6", "Write unit test"]);
+
+    let codex_opts = QuickPromptOptions {
+        workspace_path: "/tmp".to_string(),
+        prompt: "Audit security".to_string(),
+        conversation_id: None,
+        provider: "codex".to_string(),
+        model: None,
+        effort: None,
+        agent: None,
+        mode: None,
+    };
+    let (x_bin, x_args) = build_cli_arguments(&codex_opts).expect("Codex args failed");
+    assert_eq!(x_bin, "codex");
+    assert_eq!(x_args, vec!["Audit security"]);
+}
+
+#[test]
+fn test_steering_engine_execute_rejects_invalid_workspace() {
+    use agy_daemon::steering_engine::{execute_quick_prompt, QuickPromptOptions};
+
+    let opts = QuickPromptOptions {
+        workspace_path: "/nonexistent/path/12345/6789".to_string(),
+        prompt: "Hello".to_string(),
+        conversation_id: None,
+        provider: "antigravity".to_string(),
+        model: None,
+        effort: None,
+        agent: None,
+        mode: None,
+    };
+
+    assert!(execute_quick_prompt(&opts).is_err());
+}
+
+
 
 
 

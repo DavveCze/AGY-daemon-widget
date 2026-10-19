@@ -201,6 +201,25 @@ PlasmoidItem {
         commandRunner.run(cmd);
     }
 
+    function launchWithPrompt(workspacePath, prompt, provider, model, effort, agent, mode) {
+        var ws = workspacePath ? workspacePath : ".";
+        var safePrompt = prompt ? prompt.replace(/"/g, "\\\"") : "";
+        var cmd = root.daemonBinPath + " quick-prompt --workspace \"" + ws + "\" --prompt \"" + safePrompt + "\"";
+        if (provider && provider.length > 0) cmd += " --provider " + provider;
+        if (model && model.length > 0) cmd += " --model \"" + model + "\"";
+        if (effort && effort.length > 0) cmd += " --effort " + effort;
+        if (agent && agent.length > 0) cmd += " --agent " + agent;
+        if (mode && mode.length > 0) cmd += " --mode " + mode;
+        commandRunner.run(cmd);
+    }
+
+    function resumeWithPrompt(conversationId, workspacePath, prompt) {
+        var ws = workspacePath ? workspacePath : ".";
+        var safePrompt = prompt ? prompt.replace(/"/g, "\\\"") : "";
+        var cmd = root.daemonBinPath + " resume-prompt --conversation \"" + conversationId + "\" --workspace \"" + ws + "\" --prompt \"" + safePrompt + "\"";
+        commandRunner.run(cmd);
+    }
+
     Timer {
         id: stateTimer
         interval: 1500
