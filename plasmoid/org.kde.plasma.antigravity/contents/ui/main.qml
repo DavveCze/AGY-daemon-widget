@@ -89,6 +89,46 @@ PlasmoidItem {
         }
     }
 
+    property string activeDiffWorkspace: ""
+    property string activeDiffContent: ""
+    property bool isDiffLoading: false
+
+    Plasma5Support.DataSource {
+        id: diffRunner
+        engine: "executable"
+        connectedSources: []
+
+        onNewData: (sourceName, data) => {
+            disconnectSource(sourceName);
+            root.isDiffLoading = false;
+            if (data && data["stdout"]) {
+                root.activeDiffContent = data["stdout"];
+            } else {
+                root.activeDiffContent = "(Žádné neuložené změny v projektu)";
+            }
+        }
+
+        function fetchDiff(workspacePath) {
+            root.activeDiffWorkspace = workspacePath;
+            root.isDiffLoading = true;
+            root.activeDiffContent = "Načítám výpis změn (git diff)...";
+            connectSource(root.daemonBinPath + " git-diff \"" + workspacePath + "\"");
+        }
+    }
+
+    function viewGitDiff(workspacePath) {
+        diffRunner.fetchDiff(workspacePath);
+    }
+
+    function rollbackGitChanges(workspacePath, cleanUntracked) {
+        var flag = cleanUntracked ? " --clean-untracked" : "";
+        commandRunner.run(root.daemonBinPath + " git-rollback \"" + workspacePath + "\"" + flag);
+    }
+
+    function openGitDiffInTool(workspacePath) {
+        commandRunner.run("konsole --workdir \"" + workspacePath + "\" -e bash -c 'git diff; echo \"\"; read -p \"Stiskněte Enter pro zavření...\"' &");
+    }
+
     function reloadState() {
         stateReader.read();
     }

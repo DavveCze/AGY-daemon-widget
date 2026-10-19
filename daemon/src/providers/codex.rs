@@ -185,6 +185,7 @@ impl AgentProvider for CodexProvider {
                 token_usage,
                 provider: "codex".to_string(),
                 provider_badge_color: self.badge_color().to_string(),
+                git_status: Default::default(),
             });
         }
 

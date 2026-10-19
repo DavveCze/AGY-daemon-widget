@@ -112,6 +112,7 @@ impl AgentProvider for AntigravityProvider {
                 token_usage,
                 provider: "antigravity".to_string(),
                 provider_badge_color: "#3b82f6".to_string(),
+                git_status: Default::default(),
             });
         }
 

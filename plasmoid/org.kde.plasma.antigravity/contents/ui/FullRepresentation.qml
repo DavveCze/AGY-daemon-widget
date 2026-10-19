@@ -48,6 +48,18 @@ Item {
         expandedPids = map;
     }
 
+    property var activeRollbackPid: 0
+    property var diffOpenedPid: 0
+
+    function toggleDiffView(pid, workspace) {
+        if (diffOpenedPid === pid) {
+            diffOpenedPid = 0;
+        } else {
+            diffOpenedPid = pid;
+            root.viewGitDiff(workspace);
+        }
+    }
+
     function isSkillExpanded(name) {
         return !!expandedSkills[name];
     }
@@ -574,7 +586,13 @@ Item {
                         property bool isExpanded: fullRoot.isSessionExpanded(modelData.pid)
 
                         width: ListView.view.width
-                        height: isExpanded ? 340 : 108
+                        height: {
+                            var h = (modelData.git_status && modelData.git_status.is_repo) ? 142 : 108;
+                            if (sessionDelegate.isExpanded) h += 232;
+                            if (fullRoot.diffOpenedPid === modelData.pid) h += 210;
+                            if (fullRoot.activeRollbackPid === modelData.pid) h += 75;
+                            return h;
+                        }
                         Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
 
                         radius: Kirigami.Units.smallSpacing
@@ -731,6 +749,214 @@ Item {
                                     Layout.preferredHeight: 34
                                     PlasmaComponents3.ToolTip.text: "Zastavit sezení (Kill PID " + modelData.pid + ")"
                                     onClicked: root.killSession(modelData.pid)
+                                }
+                            }
+
+                            // ==========================================
+                            // GIT STATUS & 1-CLICK ROLLBACK BAR
+                            // ==========================================
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                visible: modelData.git_status && modelData.git_status.is_repo
+
+                                Rectangle {
+                                    radius: 3
+                                    color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
+                                    border.color: Kirigami.Theme.highlightColor
+                                    border.width: 1
+                                    Layout.preferredHeight: 22
+                                    Layout.preferredWidth: gitBranchRow.width + 12
+
+                                    RowLayout {
+                                        id: gitBranchRow
+                                        anchors.centerIn: parent
+                                        spacing: 4
+                                        Kirigami.Icon {
+                                            source: "vcs-branch"
+                                            Layout.preferredWidth: 12
+                                            Layout.preferredHeight: 12
+                                        }
+                                        Text {
+                                            text: modelData.git_status?.branch || "HEAD"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            color: Kirigami.Theme.highlightColor
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    radius: 3
+                                    color: (modelData.git_status?.files_changed > 0)
+                                        ? Qt.rgba(0.96, 0.62, 0.07, 0.15)
+                                        : Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.12)
+                                    border.color: (modelData.git_status?.files_changed > 0) ? "#f59e0b" : Kirigami.Theme.positiveTextColor
+                                    border.width: 1
+                                    Layout.preferredHeight: 22
+                                    Layout.preferredWidth: gitChangesLabel.contentWidth + 14
+
+                                    Text {
+                                        id: gitChangesLabel
+                                        anchors.centerIn: parent
+                                        text: (modelData.git_status?.files_changed > 0)
+                                            ? (modelData.git_status.files_changed + " změn (+" + modelData.git_status.insertions + "/-" + modelData.git_status.deletions + ")")
+                                            : "Čistý strom (Clean)"
+                                        font.pixelSize: 10
+                                        font.bold: modelData.git_status?.files_changed > 0
+                                        color: (modelData.git_status?.files_changed > 0) ? "#d97706" : Kirigami.Theme.positiveTextColor
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                PlasmaComponents3.Button {
+                                    visible: modelData.git_status?.files_changed > 0
+                                    icon.name: "document-preview"
+                                    text: "Diff"
+                                    display: PlasmaComponents3.AbstractButton.TextBesideIcon
+                                    Layout.preferredHeight: 24
+                                    PlasmaComponents3.ToolTip.text: "Zobrazit přehled změn (Git Diff)"
+                                    onClicked: fullRoot.toggleDiffView(modelData.pid, modelData.workspace_path)
+                                }
+
+                                PlasmaComponents3.Button {
+                                    visible: modelData.git_status?.files_changed > 0
+                                    icon.name: "edit-undo"
+                                    text: "Vrátit"
+                                    display: PlasmaComponents3.AbstractButton.TextBesideIcon
+                                    Layout.preferredHeight: 24
+                                    PlasmaComponents3.ToolTip.text: "1-Click Rollback: Vrátit neuložené změny agenta"
+                                    onClicked: {
+                                        if (fullRoot.activeRollbackPid === modelData.pid) {
+                                            fullRoot.activeRollbackPid = 0;
+                                        } else {
+                                            fullRoot.activeRollbackPid = modelData.pid;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Rollback Inline Confirmation
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 68
+                                visible: fullRoot.activeRollbackPid === modelData.pid
+                                radius: 4
+                                color: Qt.rgba(Kirigami.Theme.negativeTextColor.r, Kirigami.Theme.negativeTextColor.g, Kirigami.Theme.negativeTextColor.b, 0.12)
+                                border.color: Kirigami.Theme.negativeTextColor
+                                border.width: 1
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 4
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Kirigami.Icon {
+                                            source: "dialog-warning"
+                                            Layout.preferredWidth: 16
+                                            Layout.preferredHeight: 16
+                                        }
+                                        Text {
+                                            text: "Vrátit všechny neuložené změny v projektu?"
+                                            font.bold: true
+                                            font.pixelSize: 11
+                                            color: Kirigami.Theme.negativeTextColor
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        QQC2.CheckBox {
+                                            id: cleanUntrackedCheck
+                                            text: "Smazat i nové soubory"
+                                            checked: true
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+                                        Item { Layout.fillWidth: true }
+                                        PlasmaComponents3.Button {
+                                            text: "Zrušit"
+                                            Layout.preferredHeight: 26
+                                            onClicked: fullRoot.activeRollbackPid = 0
+                                        }
+                                        PlasmaComponents3.Button {
+                                            text: "Potvrdit Rollback"
+                                            icon.name: "edit-undo"
+                                            highlighted: true
+                                            Layout.preferredHeight: 26
+                                            onClicked: {
+                                                root.rollbackGitChanges(modelData.workspace_path, cleanUntrackedCheck.checked);
+                                                fullRoot.activeRollbackPid = 0;
+                                                fullRoot.diffOpenedPid = 0;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Inline Diff Drawer
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 200
+                                visible: fullRoot.diffOpenedPid === modelData.pid
+                                radius: 4
+                                color: Kirigami.Theme.backgroundColor
+                                border.color: fullRoot.borderColor
+                                border.width: 1
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 4
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: "Git Diff: " + (modelData.project_name || "")
+                                            font.bold: true
+                                            font.pixelSize: 11
+                                            color: Kirigami.Theme.textColor
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        PlasmaComponents3.Button {
+                                            icon.name: "utilities-terminal"
+                                            text: "V terminálu"
+                                            Layout.preferredHeight: 22
+                                            onClicked: root.openGitDiffInTool(modelData.workspace_path)
+                                        }
+                                        PlasmaComponents3.Button {
+                                            icon.name: "edit-copy"
+                                            text: "Kopírovat"
+                                            Layout.preferredHeight: 22
+                                            onClicked: root.copyToClipboard(root.activeDiffContent)
+                                        }
+                                        PlasmaComponents3.Button {
+                                            icon.name: "window-close"
+                                            display: PlasmaComponents3.AbstractButton.IconOnly
+                                            Layout.preferredHeight: 22
+                                            Layout.preferredWidth: 22
+                                            onClicked: fullRoot.diffOpenedPid = 0
+                                        }
+                                    }
+
+                                    QQC2.ScrollView {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        clip: true
+
+                                        QQC2.TextArea {
+                                            readOnly: true
+                                            text: root.activeDiffContent
+                                            font.family: "monospace"
+                                            font.pixelSize: 10
+                                            color: Kirigami.Theme.textColor
+                                            background: null
+                                            wrapMode: TextEdit.NoWrap
+                                        }
+                                    }
                                 }
                             }
 

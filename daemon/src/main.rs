@@ -51,6 +51,14 @@ enum Commands {
     TestNotification,
     /// Open a file in the user's default desktop editor
     OpenFile { path: String },
+    /// Display uncommitted git diff for a workspace
+    GitDiff { workspace: String },
+    /// Rollback uncommitted git changes in a workspace
+    GitRollback {
+        workspace: String,
+        #[arg(long, default_value_t = false)]
+        clean_untracked: bool,
+    },
 }
 
 fn get_base_paths() -> (
@@ -97,7 +105,10 @@ fn collect_state(
     quota: &agy_daemon::quota::RealQuotaData,
 ) -> AgyState {
     let settings = read_settings(settings_path);
-    let active_sessions = registry.scan_all_sessions();
+    let mut active_sessions = registry.scan_all_sessions();
+    for session in &mut active_sessions {
+        session.git_status = agy_daemon::git_inspector::inspect_git_status(&session.workspace_path);
+    }
     let recent = registry.get_all_recent_conversations(15);
     let active_providers = registry.active_provider_ids();
 
@@ -314,6 +325,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::OpenFile { path } => {
             let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
+            return Ok(());
+        }
+        Commands::GitDiff { workspace } => {
+            match agy_daemon::git_inspector::get_git_diff(&workspace, 64 * 1024) {
+                Ok(diff) => println!("{}", diff),
+                Err(e) => eprintln!("Error getting git diff: {}", e),
+            }
+            return Ok(());
+        }
+        Commands::GitRollback { workspace, clean_untracked } => {
+            match agy_daemon::git_inspector::rollback_git_changes(&workspace, clean_untracked) {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => eprintln!("Error during git rollback: {}", e),
+            }
             return Ok(());
         }
         Commands::Run => {}

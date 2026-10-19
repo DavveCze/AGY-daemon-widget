@@ -35,6 +35,12 @@ Under the **"Active Sessions"** tab, each running task is displayed with a clean
 * **Context Consumption (Token Usage):** A progress bar indicates how much of the context window (e.g. 1,000,000 tokens) is currently used.
 * **RAM Memory Usage:** Displays real-time RSS memory allocated by the agent process in megabytes.
 
+### Inspecting Changes & 1-Click Rollback
+AgentiCom continuously monitors the git status of your active workspaces:
+* **Git Status Badge:** Shows the active branch (e.g. `main`) and the number of uncommitted modifications (`3 changes (+42/-10)`).
+* **View Diff (`Diff` button):** Click to expand an inline, monospace preview of all modifications made by the agent, or view it in a terminal.
+* **1-Click Rollback (`Rollback` button):** If the agent makes a mistake, click **"Rollback"** to bring up the safety confirmation bar. You can choose whether to keep or remove new untracked files, then confirm to instantly restore your workspace to its clean git commit state.
+
 ### Resuming an Existing Session
 If you accidentally close a terminal window, your agent continues running safely in the background.
 1. Click the terminal icon (`utilities-terminal`) on the session card.

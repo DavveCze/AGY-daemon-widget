@@ -58,6 +58,7 @@ fn test_state_serialization_roundtrip() {
             },
             provider: "antigravity".to_string(),
             provider_badge_color: "#3b82f6".to_string(),
+            git_status: Default::default(),
         }],
         recent_conversations: vec![ConversationItem {
             conversation_id: "conv-abc-123".to_string(),
@@ -830,6 +831,7 @@ fn test_security_kill_session_unauthorized_uid_rejected() {
         token_usage: TokenUsage::default(),
         provider: "codex".to_string(),
         provider_badge_color: "".to_string(),
+        git_status: Default::default(),
     }];
 
     assert_eq!(verify_killable_ai_session(1, &dummy), Err(KillSecurityError::InvalidPid));
@@ -888,6 +890,135 @@ fn test_security_shared_memory_file_permissions_0600() {
     let meta = fs::metadata(&shm_file).unwrap();
     let mode = meta.permissions().mode() & 0o777;
     assert_eq!(mode, 0o600, "Shared memory file must strictly have 0600 permissions");
+}
+
+#[test]
+fn test_git_status_info_defaults_and_serialization() {
+    use agy_daemon::state::GitStatusInfo;
+
+    let default_info = GitStatusInfo::default();
+    assert!(!default_info.is_repo);
+    assert_eq!(default_info.files_changed, 0);
+    assert_eq!(default_info.branch, "");
+
+    let serialized = serde_json::to_string(&default_info).unwrap();
+    let deserialized: GitStatusInfo = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(default_info, deserialized);
+}
+
+#[test]
+fn test_git_inspector_detect_clean_and_dirty_repo() {
+    use std::process::Command;
+    use agy_daemon::git_inspector::inspect_git_status;
+
+    let dir = tempdir().unwrap();
+    let repo_path = dir.path();
+
+    // Initialize git repo
+    let init = Command::new("git").arg("init").arg("-b").arg("main").current_dir(repo_path).output().unwrap();
+    if !init.status.success() {
+        let _ = Command::new("git").arg("init").current_dir(repo_path).output().unwrap();
+    }
+    let _ = Command::new("git").arg("config").arg("user.name").arg("Test User").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("config").arg("user.email").arg("test@example.com").current_dir(repo_path).output();
+
+    // Create initial commit
+    let file1 = repo_path.join("file1.txt");
+    fs::write(&file1, "Line 1\nLine 2\n").unwrap();
+    let _ = Command::new("git").arg("add").arg("file1.txt").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("commit").arg("-m").arg("Initial commit").current_dir(repo_path).output();
+
+    let clean_status = inspect_git_status(&repo_path.to_string_lossy());
+    assert!(clean_status.is_repo);
+    assert_eq!(clean_status.files_changed, 0);
+
+    // Modify file1 and create file2
+    fs::write(&file1, "Line 1\nModified Line 2\nLine 3\n").unwrap();
+    let file2 = repo_path.join("file2.txt");
+    fs::write(&file2, "New file content\n").unwrap();
+
+    agy_daemon::git_inspector::invalidate_git_cache(&repo_path.to_string_lossy());
+    let dirty_status = inspect_git_status(&repo_path.to_string_lossy());
+    assert!(dirty_status.is_repo);
+    assert_eq!(dirty_status.files_changed, 2);
+    assert!(dirty_status.insertions > 0);
+    assert!(dirty_status.modified_files.contains(&"file1.txt".to_string()));
+}
+
+#[test]
+fn test_git_inspector_get_diff() {
+    use std::process::Command;
+    use agy_daemon::git_inspector::get_git_diff;
+
+    let dir = tempdir().unwrap();
+    let repo_path = dir.path();
+
+    let _ = Command::new("git").arg("init").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("config").arg("user.name").arg("Test").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("config").arg("user.email").arg("test@example.com").current_dir(repo_path).output();
+
+    let file = repo_path.join("code.rs");
+    fs::write(&file, "fn main() {}\n").unwrap();
+    let _ = Command::new("git").arg("add").arg("code.rs").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("commit").arg("-m").arg("Initial").current_dir(repo_path).output();
+
+    fs::write(&file, "fn main() {\n    println!(\"Agent changes\");\n}\n").unwrap();
+
+    let diff = get_git_diff(&repo_path.to_string_lossy(), 1024).expect("Failed to get diff");
+    assert!(diff.contains("+    println!(\"Agent changes\");"));
+}
+
+#[test]
+fn test_git_inspector_rollback_changes_tracked_and_untracked() {
+    use std::process::Command;
+    use agy_daemon::git_inspector::{get_git_diff, inspect_git_status, rollback_git_changes};
+
+    let dir = tempdir().unwrap();
+    let repo_path = dir.path();
+
+    let _ = Command::new("git").arg("init").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("config").arg("user.name").arg("Test").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("config").arg("user.email").arg("test@example.com").current_dir(repo_path).output();
+
+    let tracked = repo_path.join("tracked.txt");
+    fs::write(&tracked, "Clean version\n").unwrap();
+    let _ = Command::new("git").arg("add").arg("tracked.txt").current_dir(repo_path).output();
+    let _ = Command::new("git").arg("commit").arg("-m").arg("Clean").current_dir(repo_path).output();
+
+    // Agent breaks code and creates new file
+    fs::write(&tracked, "Corrupted version by agent\n").unwrap();
+    let untracked = repo_path.join("agent_garbage.tmp");
+    fs::write(&untracked, "Temp garbage\n").unwrap();
+
+    assert_eq!(fs::read_to_string(&tracked).unwrap(), "Corrupted version by agent\n");
+    assert!(untracked.exists());
+
+    // Execute 1-Click Rollback with clean_untracked = true
+    let result = rollback_git_changes(&repo_path.to_string_lossy(), true).expect("Rollback failed");
+    assert!(result.contains("úspěšně vráceny"));
+
+    // Verify tracked file is restored and untracked file is deleted
+    assert_eq!(fs::read_to_string(&tracked).unwrap(), "Clean version\n");
+    assert!(!untracked.exists());
+
+    let status = inspect_git_status(&repo_path.to_string_lossy());
+    assert_eq!(status.files_changed, 0);
+
+    let diff = get_git_diff(&repo_path.to_string_lossy(), 1024).unwrap();
+    assert!(diff.is_empty() || diff.trim().is_empty());
+}
+
+#[test]
+fn test_git_inspector_security_reject_invalid_paths() {
+    use agy_daemon::git_inspector::{get_git_diff, rollback_git_changes, validate_workspace_path};
+
+    assert!(validate_workspace_path("").is_err());
+    assert!(validate_workspace_path("   ").is_err());
+    assert!(validate_workspace_path("/nonexistent/directory/12345").is_err());
+    assert!(validate_workspace_path("/tmp/test\0illegal").is_err());
+
+    assert!(get_git_diff("/nonexistent/path/999", 1024).is_err());
+    assert!(rollback_git_changes("/nonexistent/path/999", false).is_err());
 }
 
 

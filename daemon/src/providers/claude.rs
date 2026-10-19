@@ -191,6 +191,7 @@ impl AgentProvider for ClaudeProvider {
                 token_usage,
                 provider: "claude".to_string(),
                 provider_badge_color: "#ea580c".to_string(),
+                git_status: Default::default(),
             });
         }
 

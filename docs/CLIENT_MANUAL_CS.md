@@ -35,6 +35,12 @@ V záložce **„Aktivní sezení“** vidíte přehlednou kartu každého běž
 * **Spotřeba kontextu (paměť na tokeny):** Barevný ukazatel vám ukáže, kolik procent z dostupného kontextového okna (např. 1 milion tokenů) je zaplněno.
 * **Paměť RAM:** Přehledně vidíte, kolik MB operační paměti proces agenta spotřebovává.
 
+### Jak zkontrolovat změny a vrátit je zpět (1-Click Rollback)
+AgentiCom v reálném čase sleduje stav Gitu v pracovní složce každého sezení:
+* **Ukazatel stavu repozitáře:** Vidíte aktuální větev (např. `main`) a počet neuložených změn (`3 změn (+42/-10)`).
+* **Zobrazení změn (tlačítko `Diff`):** Kliknutím rozbalíte přehledný textový výpis úprav nebo si jej otevřete v samostatném okně terminálu.
+* **Okamžité vrácení změn (tlačítko `Vrátit`):** Pokud agent vygeneroval chybný kód, klikněte na **„Vrátit“**. Zobrazí se bezpečnostní potvrzovací lišta, kde můžete zvolit i smazání nově vytvořených souborů, a jediným kliknutím vrátit projekt do čistého stavu posledního commitu.
+
 ### Jak se vrátit do rozpracovaného sezení
 Pokud jste omylem zavřeli okno terminálu, váš agent na pozadí stále bezpečně běží.
 1. Na kartě sezení klikněte na ikonu terminálu (`utilities-terminal`).

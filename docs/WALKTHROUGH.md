@@ -149,11 +149,23 @@ The daemon writes its state to `/dev/shm/agenticom-state.json` (with backward-co
   * `set_agent_mode(mode: String) -> bool`
   * `set_notifications_enabled(enabled: bool) -> bool`
   * `set_notification_sound(sound: bool) -> bool`
+  * `get_git_diff(workspace: String) -> String`
+  * `rollback_git_changes(workspace: String, clean_untracked: bool) -> (bool, String)`
 * **Systemd User Unit:** Managed via `systemd --user` as `agenticom-daemon.service` with automatic restart on failure (`Restart=on-failure`, `RestartSec=3`).
 
 ---
 
-## 6. KDE Plasma 6 Plasmoid & CRO Behavioral UX
+## 6. Smart Git Diff & 1-Click Rollback Engine
+
+AgentiCom integrates a dedicated kernel-secure Git Inspector module ([`daemon/src/git_inspector.rs`](../daemon/src/git_inspector.rs)):
+* **Zero-Spam Git Status Caching:** Inspects working tree changes (`git status --porcelain` and `git diff --numstat`) with a 2-second in-memory TTL cache to eliminate redundant git process spawning.
+* **Kernel POSIX Security:** Validates that target workspace paths are existing directories owned by the caller's real UID (`nix::unistd::getuid()`), preventing unauthorized repository access.
+* **Inline Diff Drawer:** Renders uncommitted changes directly in the Plasmoid using a monospace syntax-highlighted viewer, with quick actions to copy diff or view in an external terminal.
+* **1-Click Rollback:** Allows developers to immediately undo broken agent generations via `git restore --staged .`, `git restore .`, and optional `git clean -fd`, complete with an ergonomic confirmation safety bar.
+
+---
+
+## 7. KDE Plasma 6 Plasmoid & CRO Behavioral UX
 
 The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
@@ -172,12 +184,12 @@ The frontend is written in modern QML using Qt 6.8+ and KDE Kirigami:
 
 ---
 
-## 7. Comprehensive Verification & Testing Suite (35 Tests)
+## 8. Comprehensive Verification & Testing Suite (40 Tests)
 
 The test suite in [`daemon/tests/unit_and_integration_tests.rs`](../daemon/tests/unit_and_integration_tests.rs) is executed via `./test.sh` or `cargo test`:
 
 ```
-running 35 tests
+running 40 tests
 test test_all_available_models_and_agents_registry ... ok
 test test_agenticom_config_defaults_and_serialization ... ok
 test test_codex_provider_heuristics_and_scan ... ok

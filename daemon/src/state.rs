@@ -27,6 +27,22 @@ fn default_provider_badge() -> String {
     "#3b82f6".to_string()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct GitStatusInfo {
+    #[serde(default)]
+    pub is_repo: bool,
+    #[serde(default)]
+    pub branch: String,
+    #[serde(default)]
+    pub files_changed: usize,
+    #[serde(default)]
+    pub insertions: usize,
+    #[serde(default)]
+    pub deletions: usize,
+    #[serde(default)]
+    pub modified_files: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveSession {
     pub pid: u32,
@@ -48,6 +64,8 @@ pub struct ActiveSession {
     pub provider: String,
     #[serde(default = "default_provider_badge")]
     pub provider_badge_color: String,
+    #[serde(default)]
+    pub git_status: GitStatusInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

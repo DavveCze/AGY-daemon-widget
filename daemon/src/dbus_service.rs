@@ -105,4 +105,16 @@ impl AntigravityDbus {
         crate::notifications::launch_terminal_session(&conversation_id, &workspace);
         true
     }
+
+    async fn get_git_diff(&self, workspace: String) -> String {
+        crate::git_inspector::get_git_diff(&workspace, 64 * 1024)
+            .unwrap_or_else(|e| format!("Chyba při načítání diffu: {}", e))
+    }
+
+    async fn rollback_git_changes(&self, workspace: String, clean_untracked: bool) -> (bool, String) {
+        match crate::git_inspector::rollback_git_changes(&workspace, clean_untracked) {
+            Ok(msg) => (true, msg),
+            Err(e) => (false, e),
+        }
+    }
 }
